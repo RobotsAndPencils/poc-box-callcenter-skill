@@ -10,7 +10,7 @@ namespace BoxTranscriptionPOC
     public class TranscriptionParser
     {
         public const string SPEAKER_0 = "spk_0";
-        public const string SPEAKER_1 = "spk_1";
+        public const string SPEAKER_1 = "spk_2";
         public static void ParseFile(string filepath)
         {
             var json = File.ReadAllText(filepath);

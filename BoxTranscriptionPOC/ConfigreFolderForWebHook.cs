@@ -59,7 +59,7 @@ namespace BoxTranscriptionPOC
                         Triggers = webhookTriggers
                     });
                 }
-                catch (BoxConflictException<BoxWebhook> wh)
+                catch (BoxConflictException<BoxWebhook>)
                 {
                     var webhooks = await boxClient.WebhooksManager.GetWebhooksAsync(autoPaginate: true);
                     webhook = webhooks.Entries.Find((hook) => {

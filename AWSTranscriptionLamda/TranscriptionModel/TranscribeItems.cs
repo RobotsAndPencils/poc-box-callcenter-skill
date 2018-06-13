@@ -6,10 +6,10 @@ namespace AWSTranscriptionLamda
 {
     public class TranscribeItems
     {
-        public string start_time { get; set; }
+        public decimal start_time { get; set; }
         public string type { get; set; }
-        public string end_time { get; set; }
-        public TranscribeAlternatives alternatives { get; set; }
+        public decimal end_time { get; set; }
+        public List<TranscribeAlternatives> alternatives { get; set; }
     }
 
     public class TranscribeAlternatives

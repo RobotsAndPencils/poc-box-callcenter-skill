@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.Comprehend" Version="3.3.0.6" />
     <PackageReference Include="AWSSDK.S3" Version="3.3.18.3" />
 
     <PackageReference Include="Amazon.Lambda.Core" Version="1.0.0" />

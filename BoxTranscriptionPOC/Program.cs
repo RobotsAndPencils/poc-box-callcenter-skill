@@ -64,8 +64,10 @@ namespace BoxTranscriptionPOC
                             }
                             break;
                         case ARG_UPLOAD_TO_S3:
-                            var secretKey = _configuration["s3secretKey"];
-                            var publicKey = _configuration["s3publicKey"];
+                            //TODO: amazon didn't not like these keys in github.
+                            //also unable to use them to connect anyway.
+                            //var secretKey = _configuration["s3secretKey"];
+                            //var publicKey = _configuration["s3publicKey"];
                             var s3ServiceUrl = _configuration["s3serviceUrl"];
                              fileName = _configuration["uploadFileName"];
                              filePath = _configuration["uploadFilePath"];
@@ -74,9 +76,9 @@ namespace BoxTranscriptionPOC
 
                             //var s3uploader = new UploadToS3(publicKey, secretKey, s3ServiceUrl);
                             //s3uploader.UploadFile(string.Concat(filePath, "\\", fileName), bucketName, fileName).Wait();
-                            var comprehend = new AswComprehend(publicKey, secretKey);
-                            var sentiment = await comprehend.GenerateSentiment("Test Text");
-                            Console.WriteLine($"type: {sentiment?.Sentiment}, score {sentiment.SentimentScore}");
+                            ////var comprehend = new AswComprehend(publicKey, secretKey);
+                            //var sentiment = await comprehend.GenerateSentiment("Test Text");
+                            //Console.WriteLine($"type: {sentiment?.Sentiment}, score {sentiment.SentimentScore}");
                             break;
                         case ARG_PARSE_TRANSCRIPTION_FILE:
                             TranscriptionParser.ParseFile("./transciption.json");
