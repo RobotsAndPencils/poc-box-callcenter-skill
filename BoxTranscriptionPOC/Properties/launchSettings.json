@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BoxTranscriptionPOC": {
+      "commandName": "Project",
+      "commandLineArgs": "parse"
+    }
+  }
+}
