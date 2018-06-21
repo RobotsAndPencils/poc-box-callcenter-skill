@@ -279,11 +279,11 @@ namespace AWSTranscriptionLamda
 
         private static void LogSentimate(DetectSentimentResponse speakerSentimate,int speaker)
         {
-            Console.WriteLine($"Speaker {speaker} sentiment: { speakerSentimate.Sentiment.Value}, scores: {speakerSentimate.SentimentScore.Mixed}");
+            Console.WriteLine($"Speaker {speaker} sentiment: { speakerSentimate.Sentiment.Value}, scores: ");
             Console.WriteLine($"--- negative: {speakerSentimate.SentimentScore.Negative}");
             Console.WriteLine($"--- Mixed: {speakerSentimate.SentimentScore.Mixed}");
             Console.WriteLine($"--- Neutral: {speakerSentimate.SentimentScore.Neutral}");
-            Console.WriteLine($"--- Mixed: {speakerSentimate.SentimentScore.Positive}");
+            Console.WriteLine($"--- Positive: {speakerSentimate.SentimentScore.Positive}");
         }
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)
