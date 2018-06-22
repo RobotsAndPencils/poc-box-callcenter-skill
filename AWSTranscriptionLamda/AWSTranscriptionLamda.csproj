@@ -21,4 +21,15 @@
     <DotNetCliToolReference Include="Amazon.Lambda.Tools" Version="2.1.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="SpeakerSegment.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="transcription2.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="transciption.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

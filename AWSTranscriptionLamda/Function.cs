@@ -35,8 +35,13 @@ namespace AWSTranscriptionLamda
             public const string FAILED = "FAILED";
         }
 
-        public const string SPEAKER_0 = "spk_0";
-        public const string SPEAKER_1 = "spk_2";//for some reason spk_1 is just silence
+        public struct SpeakerResult {
+            public decimal start;
+            public decimal end;
+            public string text;
+            public DetectSentimentResponse sentiment;
+        }
+
         public const string REGION_ENVIRONMENT_VARIABLE_NAME = "AWS_REGION";
         public const int MAX_SPEAKER_LABELS = 3;//May need to be increased.
        
@@ -219,9 +224,11 @@ namespace AWSTranscriptionLamda
             else if (finishedJob.TranscriptionJobStatus.Value == JobStatus.COMPLETED)
             {
                 Console.WriteLine($"Transcription file located @: {finishedJob.Transcript.TranscriptFileUri}");
-                await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
+                //TODO: will move till after so we can encode metadata with all results
+                //await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
                
                 var json = GetJobResultsForAnalsys(finishedJob.Transcript.TranscriptFileUri);
+                Console.WriteLine(json); //TODO: remove me
                 JObject transcriptionResults = JObject.Parse(json);
                 await ProcessTranscriptionResults(transcriptionResults);
             }
@@ -229,57 +236,103 @@ namespace AWSTranscriptionLamda
 
         private async Task ProcessTranscriptionResults(JObject transcriptionResults)
         {
-            StringBuilder speaker1Text = new StringBuilder();
-            StringBuilder speaker2Text = new StringBuilder();
-            decimal startSegment = 0;
-            decimal endSegment = 0;
-            TranscribeAlternatives alternative = null;
+            StringBuilder speakerText = new StringBuilder();
+            TranscribeAlternative alternative = null;
 
-            var segments = transcriptionResults["results"]["speaker_labels"]["segments"].ToObject<List<Segments>>();
-            var transciptionsItems = transcriptionResults["results"]["items"].ToObject<List<TranscribeItems>>();
+            var segments = transcriptionResults["results"]["speaker_labels"]["segments"].ToObject<List<Segment>>();
+            var transciptionsItems = transcriptionResults["results"]["items"].ToObject<List<TranscribeItem>>();
 
             Console.WriteLine($"items: {transciptionsItems?.Count} segments: {segments.Count}");
 
             var speakerLabel = string.Empty;
+            var lastSpeaker = "nobody";
+            SpeakerResult currentSpeakerResult = new SpeakerResult();
+            var results = new Dictionary<string, List<SpeakerResult>>();
+
+            var itemIdx = 0;
+
+            var ti = transciptionsItems;
+            // sements have a begin and end, however the items contained in it also
+            // have begin and ends. the range of the items have a 1 to 1 correlation to the 'pronunciation' transcription
+            // item types. These also have ends which are outside the range of the segement strangely. So will be using segment to
+            // get the speaker, then will create an inclusive range for all items under it using the being of first and end of last. 
             foreach (var segment in segments)
             {
-                startSegment = segment.start_time;
-                endSegment = segment.end_time;
-                speakerLabel = segment.speaker_label;
-                foreach (var item in transciptionsItems)
-                {
-                    if (startSegment < item.start_time && item.end_time < endSegment)
-                    {
-                        alternative = item.alternatives.First();
-                        if (speakerLabel == SPEAKER_0)
-                        {
-                            speaker1Text.Append(alternative.content);
-                            speaker1Text.Append(" ");
-                        }
-                        else
-                        {
-                            speaker2Text.Append(alternative.content);
-                            speaker2Text.Append(" ");
-                        }
-                    }
+                if (!lastSpeaker.Equals(segment.speaker_label)) {
+                    currentSpeakerResult.text = speakerText.ToString();
+                    speakerText = new StringBuilder();
+                    lastSpeaker = segment.speaker_label;
+                    currentSpeakerResult = new SpeakerResult();
 
+                    ConfigureTimeRange(ref currentSpeakerResult, segment);
+
+                    if (!results.ContainsKey(lastSpeaker)) {
+                        results.Add(lastSpeaker, new List<SpeakerResult>());
+                    }
+                    results[lastSpeaker].Add(currentSpeakerResult);
+                } else {
+                    ConfigureTimeRange(ref currentSpeakerResult, segment);
                 }
 
-            }
-            Console.WriteLine($"Speaker 1: {speaker1Text}");
-            Console.WriteLine($"Speaker 2: {speaker2Text}");
-            var speaker1sentimate = await GenerateSentiment(speaker1Text.ToString());
-            LogSentimate(speaker1sentimate,1);
+                for (; itemIdx < ti.Count 
+                     && ((currentSpeakerResult.start <= ti[itemIdx].start_time && ti[itemIdx].end_time <= currentSpeakerResult.end)
+                         || (ti[itemIdx].start_time == 0m))
+                     ; itemIdx++)
+                    {
+                    alternative = ti[itemIdx].alternatives.First();
+                    if (alternative.content.Equals("[SLIENCE]"))
+                    {
+                        speakerText.Append(".");
+                    }
+                    else
+                    {
+                        speakerText.Append(alternative.content);
+                    }
+                    speakerText.Append(" ");
+                }          
 
-            var speaker2sentimate = await GenerateSentiment(speaker2Text.ToString());
-            LogSentimate(speaker2sentimate, 2);
+            }
+            currentSpeakerResult.text = speakerText.ToString();
+
+            Console.WriteLine("Transcription Results:");
+            foreach (var entry in results)
+            {
+                Console.WriteLine($"Speaker: {entry.Key}");
+                foreach (var speakerResult in entry.Value)
+                {
+                    Console.WriteLine($"  Text: {speakerResult.text}");
+                }
+            }
+
+            Console.WriteLine("Full Results:");
+            List<string> keyList = new List<string>(results.Keys);
+            for (int keyIdx = 0; keyIdx < keyList.Count ; keyIdx++) {
+                var spkKey = keyList[keyIdx];
+                Console.WriteLine($"Speaker: {spkKey}");
+                // this should be done in paralell
+                for (int resultIdx = 0; resultIdx < results[spkKey].Count; resultIdx++) {
+                    var speakerResult = results[spkKey][resultIdx];
+                    speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
+                    LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                }
+            }
 
             //TODO: write sentiment results to box.  
         }
 
-        private static void LogSentimate(DetectSentimentResponse speakerSentimate,int speaker)
+        private void ConfigureTimeRange (ref SpeakerResult currentSpeakerResult, Segment segment) {
+            foreach (var item in segment.items)
+            {
+                if (currentSpeakerResult.start == 0m) currentSpeakerResult.start = item.start_time;
+                currentSpeakerResult.end = item.end_time;
+            }
+        }
+
+        private static void LogSentimate(DetectSentimentResponse speakerSentimate, string speaker, string text)
         {
-            Console.WriteLine($"Speaker {speaker} sentiment: { speakerSentimate.Sentiment.Value}, scores: ");
+            Console.WriteLine($"Speaker: {speaker}");
+            Console.WriteLine($"text: {text}");
+            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value}");
             Console.WriteLine($"--- negative: {speakerSentimate.SentimentScore.Negative}");
             Console.WriteLine($"--- Mixed: {speakerSentimate.SentimentScore.Mixed}");
             Console.WriteLine($"--- Neutral: {speakerSentimate.SentimentScore.Neutral}");
@@ -311,4 +364,5 @@ namespace AWSTranscriptionLamda
         }
 
     }
+
 }
