@@ -20,6 +20,7 @@ using System.Text;
 using System.Linq;
 using Amazon.Comprehend.Model;
 using Amazon.Comprehend;
+using System.Text.RegularExpressions;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -35,7 +36,7 @@ namespace AWSTranscriptionLamda
             public const string FAILED = "FAILED";
         }
 
-        public struct SpeakerResult {
+        public class SpeakerResult {
             public decimal start;
             public decimal end;
             public string text;
@@ -43,8 +44,8 @@ namespace AWSTranscriptionLamda
         }
 
         public const string REGION_ENVIRONMENT_VARIABLE_NAME = "AWS_REGION";
-        public const int MAX_SPEAKER_LABELS = 3;//May need to be increased.
-       
+        public const int MAX_SPEAKER_LABELS = 2;//May need to be increased.
+        private Regex blankPattern = new Regex("^\\W*$");
 
         private string AWS_Region { get; set; }
         private string AWS_BucketName { get; set; }
@@ -261,15 +262,16 @@ namespace AWSTranscriptionLamda
                 if (!lastSpeaker.Equals(segment.speaker_label)) {
                     currentSpeakerResult.text = speakerText.ToString();
                     speakerText = new StringBuilder();
-                    lastSpeaker = segment.speaker_label;
                     currentSpeakerResult = new SpeakerResult();
-
                     ConfigureTimeRange(ref currentSpeakerResult, segment);
+                    lastSpeaker = segment.speaker_label;
+
 
                     if (!results.ContainsKey(lastSpeaker)) {
                         results.Add(lastSpeaker, new List<SpeakerResult>());
                     }
                     results[lastSpeaker].Add(currentSpeakerResult);
+
                 } else {
                     ConfigureTimeRange(ref currentSpeakerResult, segment);
                 }
@@ -280,7 +282,7 @@ namespace AWSTranscriptionLamda
                      ; itemIdx++)
                     {
                     alternative = ti[itemIdx].alternatives.First();
-                    if (alternative.content.Equals("[SLIENCE]"))
+                    if (alternative.content.Equals("[SILENCE]"))
                     {
                         speakerText.Append(".");
                     }
@@ -293,6 +295,7 @@ namespace AWSTranscriptionLamda
 
             }
             currentSpeakerResult.text = speakerText.ToString();
+
 
             Console.WriteLine("Transcription Results:");
             foreach (var entry in results)
@@ -312,12 +315,18 @@ namespace AWSTranscriptionLamda
                 // this should be done in paralell
                 for (int resultIdx = 0; resultIdx < results[spkKey].Count; resultIdx++) {
                     var speakerResult = results[spkKey][resultIdx];
-                    speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
-                    LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                    if (!isBlankText(results[spkKey][resultIdx].text))
+                    {
+                        speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
+                        LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                    }
                 }
             }
 
-            //TODO: write sentiment results to box.  
+        }
+
+        private bool isBlankText (string text) {
+            return blankPattern.Match(text).Success;
         }
 
         private void ConfigureTimeRange (ref SpeakerResult currentSpeakerResult, Segment segment) {
