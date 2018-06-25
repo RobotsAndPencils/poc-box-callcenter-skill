@@ -225,13 +225,14 @@ namespace AWSTranscriptionLamda
             else if (finishedJob.TranscriptionJobStatus.Value == JobStatus.COMPLETED)
             {
                 Console.WriteLine($"Transcription file located @: {finishedJob.Transcript.TranscriptFileUri}");
-                //TODO: will move till after so we can encode metadata with all results
-                //await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
+
                
                 var json = GetJobResultsForAnalsys(finishedJob.Transcript.TranscriptFileUri);
-                Console.WriteLine(json); //TODO: remove me
+
                 JObject transcriptionResults = JObject.Parse(json);
                 await ProcessTranscriptionResults(transcriptionResults);
+                //TODO: save all results, not just transcription
+                await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
             }
         }
 
@@ -297,17 +298,7 @@ namespace AWSTranscriptionLamda
             currentSpeakerResult.text = speakerText.ToString();
 
 
-            Console.WriteLine("Transcription Results:");
-            foreach (var entry in results)
-            {
-                Console.WriteLine($"Speaker: {entry.Key}");
-                foreach (var speakerResult in entry.Value)
-                {
-                    Console.WriteLine($"  Text: {speakerResult.text}");
-                }
-            }
-
-            Console.WriteLine("Full Results:");
+            Console.WriteLine("Full Results (Transcription + sentiment):");
             List<string> keyList = new List<string>(results.Keys);
             for (int keyIdx = 0; keyIdx < keyList.Count ; keyIdx++) {
                 var spkKey = keyList[keyIdx];
@@ -350,7 +341,6 @@ namespace AWSTranscriptionLamda
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)
         {
-
 
             // Call DetectKeyPhrases API
             Console.WriteLine("Calling DetectSentiment");
