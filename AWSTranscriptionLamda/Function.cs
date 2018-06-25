@@ -20,6 +20,7 @@ using System.Text;
 using System.Linq;
 using Amazon.Comprehend.Model;
 using Amazon.Comprehend;
+using System.Text.RegularExpressions;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -35,11 +36,16 @@ namespace AWSTranscriptionLamda
             public const string FAILED = "FAILED";
         }
 
-        public const string SPEAKER_0 = "spk_0";
-        public const string SPEAKER_1 = "spk_2";//for some reason spk_1 is just silence
+        public class SpeakerResult {
+            public decimal start;
+            public decimal end;
+            public string text;
+            public DetectSentimentResponse sentiment;
+        }
+
         public const string REGION_ENVIRONMENT_VARIABLE_NAME = "AWS_REGION";
-        public const int MAX_SPEAKER_LABELS = 3;//May need to be increased.
-       
+        public const int MAX_SPEAKER_LABELS = 2;//May need to be increased.
+        private Regex blankPattern = new Regex("^\\W*$");
 
         private string AWS_Region { get; set; }
         private string AWS_BucketName { get; set; }
@@ -219,67 +225,114 @@ namespace AWSTranscriptionLamda
             else if (finishedJob.TranscriptionJobStatus.Value == JobStatus.COMPLETED)
             {
                 Console.WriteLine($"Transcription file located @: {finishedJob.Transcript.TranscriptFileUri}");
-                await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
+
                
                 var json = GetJobResultsForAnalsys(finishedJob.Transcript.TranscriptFileUri);
+
                 JObject transcriptionResults = JObject.Parse(json);
                 await ProcessTranscriptionResults(transcriptionResults);
+                //TODO: save all results, not just transcription
+                await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
             }
         }
 
         private async Task ProcessTranscriptionResults(JObject transcriptionResults)
         {
-            StringBuilder speaker1Text = new StringBuilder();
-            StringBuilder speaker2Text = new StringBuilder();
-            decimal startSegment = 0;
-            decimal endSegment = 0;
-            TranscribeAlternatives alternative = null;
+            StringBuilder speakerText = new StringBuilder();
+            TranscribeAlternative alternative = null;
 
-            var segments = transcriptionResults["results"]["speaker_labels"]["segments"].ToObject<List<Segments>>();
-            var transciptionsItems = transcriptionResults["results"]["items"].ToObject<List<TranscribeItems>>();
+            var segments = transcriptionResults["results"]["speaker_labels"]["segments"].ToObject<List<Segment>>();
+            var transciptionsItems = transcriptionResults["results"]["items"].ToObject<List<TranscribeItem>>();
 
             Console.WriteLine($"items: {transciptionsItems?.Count} segments: {segments.Count}");
 
             var speakerLabel = string.Empty;
+            var lastSpeaker = "nobody";
+            SpeakerResult currentSpeakerResult = new SpeakerResult();
+            var results = new Dictionary<string, List<SpeakerResult>>();
+
+            var itemIdx = 0;
+
+            var ti = transciptionsItems;
+            // sements have a begin and end, however the items contained in it also
+            // have begin and ends. the range of the items have a 1 to 1 correlation to the 'pronunciation' transcription
+            // item types. These also have ends which are outside the range of the segement strangely. So will be using segment to
+            // get the speaker, then will create an inclusive range for all items under it using the being of first and end of last. 
             foreach (var segment in segments)
             {
-                startSegment = segment.start_time;
-                endSegment = segment.end_time;
-                speakerLabel = segment.speaker_label;
-                foreach (var item in transciptionsItems)
-                {
-                    if (startSegment < item.start_time && item.end_time < endSegment)
-                    {
-                        alternative = item.alternatives.First();
-                        if (speakerLabel == SPEAKER_0)
-                        {
-                            speaker1Text.Append(alternative.content);
-                            speaker1Text.Append(" ");
-                        }
-                        else
-                        {
-                            speaker2Text.Append(alternative.content);
-                            speaker2Text.Append(" ");
-                        }
-                    }
+                if (!lastSpeaker.Equals(segment.speaker_label)) {
+                    currentSpeakerResult.text = speakerText.ToString();
+                    speakerText = new StringBuilder();
+                    currentSpeakerResult = new SpeakerResult();
+                    ConfigureTimeRange(ref currentSpeakerResult, segment);
+                    lastSpeaker = segment.speaker_label;
 
+
+                    if (!results.ContainsKey(lastSpeaker)) {
+                        results.Add(lastSpeaker, new List<SpeakerResult>());
+                    }
+                    results[lastSpeaker].Add(currentSpeakerResult);
+
+                } else {
+                    ConfigureTimeRange(ref currentSpeakerResult, segment);
                 }
 
+                for (; itemIdx < ti.Count 
+                     && ((currentSpeakerResult.start <= ti[itemIdx].start_time && ti[itemIdx].end_time <= currentSpeakerResult.end)
+                         || (ti[itemIdx].start_time == 0m))
+                     ; itemIdx++)
+                    {
+                    alternative = ti[itemIdx].alternatives.First();
+                    if (alternative.content.Equals("[SILENCE]"))
+                    {
+                        speakerText.Append(".");
+                    }
+                    else
+                    {
+                        speakerText.Append(alternative.content);
+                    }
+                    speakerText.Append(" ");
+                }          
+
             }
-            Console.WriteLine($"Speaker 1: {speaker1Text}");
-            Console.WriteLine($"Speaker 2: {speaker2Text}");
-            var speaker1sentimate = await GenerateSentiment(speaker1Text.ToString());
-            LogSentimate(speaker1sentimate,1);
+            currentSpeakerResult.text = speakerText.ToString();
 
-            var speaker2sentimate = await GenerateSentiment(speaker2Text.ToString());
-            LogSentimate(speaker2sentimate, 2);
 
-            //TODO: write sentiment results to box.  
+            Console.WriteLine("Full Results (Transcription + sentiment):");
+            List<string> keyList = new List<string>(results.Keys);
+            for (int keyIdx = 0; keyIdx < keyList.Count ; keyIdx++) {
+                var spkKey = keyList[keyIdx];
+                Console.WriteLine($"Speaker: {spkKey}");
+                // this should be done in paralell
+                for (int resultIdx = 0; resultIdx < results[spkKey].Count; resultIdx++) {
+                    var speakerResult = results[spkKey][resultIdx];
+                    if (!isBlankText(results[spkKey][resultIdx].text))
+                    {
+                        speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
+                        LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                    }
+                }
+            }
+
         }
 
-        private static void LogSentimate(DetectSentimentResponse speakerSentimate,int speaker)
+        private bool isBlankText (string text) {
+            return blankPattern.Match(text).Success;
+        }
+
+        private void ConfigureTimeRange (ref SpeakerResult currentSpeakerResult, Segment segment) {
+            foreach (var item in segment.items)
+            {
+                if (currentSpeakerResult.start == 0m) currentSpeakerResult.start = item.start_time;
+                currentSpeakerResult.end = item.end_time;
+            }
+        }
+
+        private static void LogSentimate(DetectSentimentResponse speakerSentimate, string speaker, string text)
         {
-            Console.WriteLine($"Speaker {speaker} sentiment: { speakerSentimate.Sentiment.Value}, scores: ");
+            Console.WriteLine($"Speaker: {speaker}");
+            Console.WriteLine($"text: {text}");
+            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value}");
             Console.WriteLine($"--- negative: {speakerSentimate.SentimentScore.Negative}");
             Console.WriteLine($"--- Mixed: {speakerSentimate.SentimentScore.Mixed}");
             Console.WriteLine($"--- Neutral: {speakerSentimate.SentimentScore.Neutral}");
@@ -288,7 +341,6 @@ namespace AWSTranscriptionLamda
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)
         {
-
 
             // Call DetectKeyPhrases API
             Console.WriteLine("Calling DetectSentiment");
@@ -311,4 +363,5 @@ namespace AWSTranscriptionLamda
         }
 
     }
+
 }
