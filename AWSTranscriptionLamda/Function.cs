@@ -25,7 +25,7 @@ using System.Text.RegularExpressions;
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace AWSTranscriptionLamda
+namespace BoxTranscriptionLamda
 {
     public class Function
     {
@@ -54,7 +54,7 @@ namespace AWSTranscriptionLamda
 
         private AmazonTranscribeServiceClient _amazonTranscribeServiceClient { get; }
         private AmazonComprehendClient _comprehendClient { get; }
-
+        private Dictionary<string, List<SpeakerResult>> results = new Dictionary<string, List<SpeakerResult>>();
 
         HashSet<string> SupportedImageTypes { get; } = new HashSet<string> { ".wav", ".mp3", ".mp3", ".flac" };
 
@@ -232,7 +232,9 @@ namespace AWSTranscriptionLamda
                 JObject transcriptionResults = JObject.Parse(json);
                 await ProcessTranscriptionResults(transcriptionResults);
                 //TODO: save all results, not just transcription
-                await BoxHelper.UploadTranscriptionBytesToBox(finishedJob.Transcript.TranscriptFileUri, TranscriptionFileName);
+
+                var jsonResults = JsonConvert.SerializeObject(results);
+                await BoxHelper.UploadTranscriptionBytesToBox(Encoding.UTF8.GetBytes(jsonResults), TranscriptionFileName);
             }
         }
 
@@ -249,7 +251,6 @@ namespace AWSTranscriptionLamda
             var speakerLabel = string.Empty;
             var lastSpeaker = "nobody";
             SpeakerResult currentSpeakerResult = new SpeakerResult();
-            var results = new Dictionary<string, List<SpeakerResult>>();
 
             var itemIdx = 0;
 
@@ -313,8 +314,8 @@ namespace AWSTranscriptionLamda
                     }
                 }
             }
-
         }
+
 
         private bool isBlankText (string text) {
             return blankPattern.Match(text).Success;
@@ -333,10 +334,6 @@ namespace AWSTranscriptionLamda
             Console.WriteLine($"Speaker: {speaker}");
             Console.WriteLine($"text: {text}");
             Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value}");
-            Console.WriteLine($"--- negative: {speakerSentimate.SentimentScore.Negative}");
-            Console.WriteLine($"--- Mixed: {speakerSentimate.SentimentScore.Mixed}");
-            Console.WriteLine($"--- Neutral: {speakerSentimate.SentimentScore.Neutral}");
-            Console.WriteLine($"--- Positive: {speakerSentimate.SentimentScore.Positive}");
         }
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)

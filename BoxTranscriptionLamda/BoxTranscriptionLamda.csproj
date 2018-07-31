@@ -26,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="transcription2.json" />
+    <None Remove="testEvents\testS3PutTranscribeEvent.json" />
   </ItemGroup>
   <ItemGroup>
     <None Update="transciption.json">
