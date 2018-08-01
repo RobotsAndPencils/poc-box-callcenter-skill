@@ -7,6 +7,7 @@ namespace BoxTranscriptionLamda {
         public decimal start;
         public decimal end;
         public string text;
+        public int speaker;
         public DetectSentimentResponse sentiment;
     }
 }

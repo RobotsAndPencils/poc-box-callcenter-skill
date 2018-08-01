@@ -39,9 +39,6 @@ namespace BoxTranscriptionLamda
 
         public const int MAX_SPEAKER_LABELS = 2;//May need to be increased.
         private Regex blankPattern = new Regex("^\\W*$");
-        //TODO: hate this but out of time. Should have class representing result to hold extra metadata (duraiton) and dictionary
-        private decimal duration = 0;
-
         private string AWS_Region { get; set; }
         private string AWS_BucketName { get; set; }
         private string TranscriptionFileName { get; set; }
@@ -135,9 +132,10 @@ namespace BoxTranscriptionLamda
                     Console.WriteLine("AWS Transcription job failed. Aborting");
                     return;
             }
-            var results = await ProcessTranscriptionJob(job);
+            var result = await ProcessTranscriptionJob(job);
+            CallCenterSkill.ProcessTranscriptionResults(ref result);
             DeleteObjectNonVersionedBucketAsync(fileName).Wait();
-            await BoxHelper.GenerateCards(duration, results, inputJson);
+            await BoxHelper.GenerateCards(result, inputJson);
         }
 
         private async Task DeleteObjectNonVersionedBucketAsync(string key)
@@ -259,9 +257,9 @@ namespace BoxTranscriptionLamda
             return getTranscribeResponse?.TranscriptionJob;
         }
 
-        private async Task<Dictionary<string, List<SpeakerResult>>> ProcessTranscriptionJob(TranscriptionJob finishedJob)
+        private async Task<SkillResult> ProcessTranscriptionJob(TranscriptionJob finishedJob)
         {
-            var results = new Dictionary<string, List<SpeakerResult>>();
+            var result = new SkillResult();
 
             if (finishedJob?.TranscriptionJobStatus.Value == JobStatus.FAILED)
             {
@@ -275,17 +273,17 @@ namespace BoxTranscriptionLamda
                 var json = GetJobResultsForAnalsys(finishedJob.Transcript.TranscriptFileUri);
 
                 JObject transcriptionResults = JObject.Parse(json);
-                results = await ProcessTranscriptionResults(transcriptionResults);
+                result = await ProcessTranscriptionResults(transcriptionResults);
 
-                var jsonResults = JsonConvert.SerializeObject(results);
+                var jsonResults = JsonConvert.SerializeObject(result);
             }
 
-            return results;
+            return result;
         }
 
-        private async Task<Dictionary<string, List<SpeakerResult>>> ProcessTranscriptionResults(JObject transcriptionResults)
+        private async Task<SkillResult> ProcessTranscriptionResults(JObject transcriptionResults)
         {
-            var results = new Dictionary<string, List<SpeakerResult>>();
+            var result = new SkillResult();
 
             StringBuilder speakerText = new StringBuilder();
             TranscribeAlternative alternative = null;
@@ -307,7 +305,7 @@ namespace BoxTranscriptionLamda
             // item types. These also have ends which are outside the range of the segement strangely. So will be using segment to
             // get the speaker, then will create an inclusive range for all items under it using the being of first and end of last. 
             foreach (var segment in segments) {
-                duration = segment.end_time;
+                result.duration = segment.end_time;
                 if (!lastSpeaker.Equals(segment.speaker_label))
                 {
                     // these lines do nothing the first iteration, but tie up last
@@ -316,16 +314,20 @@ namespace BoxTranscriptionLamda
                     speakerText = new StringBuilder();
 
                     // create new speaker result for new speaker - or first speaker on first iteration 
+                    var idx = result.speakerLabels.IndexOf(segment.speaker_label);
+                    if (idx == -1) {
+                        idx = result.speakerLabels.Count;
+                        result.speakerLabels.Add(segment.speaker_label);
+                        result.resultBySpeaker.Add(idx, new List<SpeakerResult>());
+                    }
+
                     currentSpeakerResult = new SpeakerResult();
+                    currentSpeakerResult.speaker = idx;
                     ConfigureTimeRange(ref currentSpeakerResult, segment);
                     lastSpeaker = segment.speaker_label;
 
-
-                    if (!results.ContainsKey(lastSpeaker))
-                    {
-                        results.Add(lastSpeaker, new List<SpeakerResult>());
-                    }
-                    results[lastSpeaker].Add(currentSpeakerResult);
+                    result.resultBySpeaker[idx].Add(currentSpeakerResult);
+                    result.resultByTime.Add(currentSpeakerResult);
 
                 }
                 else
@@ -355,24 +357,24 @@ namespace BoxTranscriptionLamda
 
 
             Console.WriteLine("Full Results (Transcription + sentiment):");
-            List<string> keyList = new List<string>(results.Keys);
+            List<int> keyList = new List<int>(result.resultBySpeaker.Keys);
             for (int keyIdx = 0; keyIdx < keyList.Count; keyIdx++)
             {
                 var spkKey = keyList[keyIdx];
                 Console.WriteLine($"Speaker: {spkKey}");
                 // this should be done in paralell
-                for (int resultIdx = 0; resultIdx < results[spkKey].Count; resultIdx++)
+                for (int resultIdx = 0; resultIdx < result.resultBySpeaker[spkKey].Count; resultIdx++)
                 {
-                    var speakerResult = results[spkKey][resultIdx];
-                    if (!IsBlankText(results[spkKey][resultIdx].text))
+                    var speakerResult = result.resultBySpeaker[spkKey][resultIdx];
+                    if (!IsBlankText(result.resultBySpeaker[spkKey][resultIdx].text))
                     {
-                        speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
-                        LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                        speakerResult.sentiment = await GenerateSentiment(result.resultBySpeaker[spkKey][resultIdx].text);
+                        LogSentimate(result.resultBySpeaker[spkKey][resultIdx].sentiment, spkKey, result.resultBySpeaker[spkKey][resultIdx].text);
                     }
                 }
             }
 
-            return results;
+            return result;
         }
 
 
@@ -390,11 +392,11 @@ namespace BoxTranscriptionLamda
             }
         }
 
-        private static void LogSentimate(DetectSentimentResponse speakerSentimate, string speaker, string text)
+        private static void LogSentimate(DetectSentimentResponse speakerSentimate, int speaker, string text)
         {
-            Console.WriteLine($"Speaker: {speaker}");
+            Console.WriteLine($"Speaker: spk_{speaker}");
             Console.WriteLine($"text: {text}");
-            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value}");
+            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value }");
         }
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)

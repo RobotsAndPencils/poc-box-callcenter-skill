@@ -24,7 +24,7 @@ namespace BoxTranscriptionLamda
         public static string getFileUrl (string id, dynamic token) {
             return $"{BOX_API_ENDPOINT}/files/{id}/content?access_token={token.read.access_token}";
         }
-        public static async Task GenerateCards(decimal duration, Dictionary<string, List<SpeakerResult>> results, dynamic boxBody)
+        public static async Task GenerateCards(SkillResult result, dynamic boxBody)
         {
             var config = new BoxConfig(string.Empty, string.Empty, new Uri("http://boxsdk"));
             var session = new OAuthSession(boxBody.token.write.access_token.Value, string.Empty, 3600, "bearer");
@@ -35,7 +35,7 @@ namespace BoxTranscriptionLamda
 
             var cards = new List<Dictionary<string, object>>
             {
-                GeneateTopicsKeywordCard(duration, results, boxBody, client)
+                GeneateTopicsKeywordCard(result, boxBody, client)
             };
             var skillsMetadata = new Dictionary<string, object>(){
                 { "cards", cards }
@@ -47,9 +47,6 @@ namespace BoxTranscriptionLamda
             } catch (Exception e) {
                 Console.WriteLine("Exception creating metadata. Trying update");
                 Console.WriteLine(e);
-                Console.WriteLine("== Exception Detail ==");
-                Console.WriteLine(JsonConvert.SerializeObject(e, Formatting.None));
-
                 BoxMetadataUpdate updateObj = new BoxMetadataUpdate
                 {
                     Op = MetadataUpdateOp.replace,
@@ -62,79 +59,60 @@ namespace BoxTranscriptionLamda
                 } catch (Exception e2) {
                     Console.WriteLine("Exception updating metadata. giving up");
                     Console.WriteLine(e2);
-                    Console.WriteLine("== Exception Detail ==");
-                    Console.WriteLine(JsonConvert.SerializeObject(e2, Formatting.None));
                     return;
                 }
+                Console.WriteLine("Successfully updated metadata");
             }
         }
+
+
+        // 
+        public static void AdjustLabels (ref SkillResult result) {
+            
+            
+        }
+
+
 
         //Run through results, grouping words and saving the locations in the media file. Create card with top 20
         //words more than 5 characters. 
         // TODO: should have common word list to ignore instead of <5 chars
         // TODO: should calculate proximity to find phrases that appear together
-        public static Dictionary<string, object> GeneateTopicsKeywordCard(decimal duration, Dictionary<string, List<SpeakerResult>> results, dynamic boxBody, BoxClient client)
+        public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            Console.WriteLine("== GeneateTopicsKeywordCard ==");
-            //create dictionary of words to array of locations. Can then sort by array lengths
-            var wordLocations = new Dictionary<string, List<SpeakerResult>>();
-
-            Console.WriteLine("Building work locations dictionary");
-            foreach (var speaker in results)
+            if (client == null)
             {
-                foreach (var result in results[speaker.Key])
-                {
-                    var text = Regex.Replace(result.text, @"\[\.,!?]", "");
-                    text = Regex.Replace(text, @"\[ ]{2,}", " ");
-                    foreach (string word in text.Split(' '))
-                    {
-                        if (word.Length > 5)
-                        {
-                            if (!wordLocations.ContainsKey(word))
-                            {
-                                wordLocations.Add(word, new List<SpeakerResult>());
-                            }
-                            wordLocations[word].Add(result);
-                        }
-                    }
-                }
+                throw new ArgumentNullException(nameof(client));
             }
-            Console.WriteLine("Sorting words by word location occurances");
-            List<string> words = new List<string>(wordLocations.Keys);
-            words.Sort(delegate (string wordA, string wordB)
-            {
-                return wordLocations[wordB].Count - wordLocations[wordA].Count;
-            });
-
 
             var card = GetKeywordCardTemplate();
             Console.WriteLine("Assign top level properties");
             card["id"] = boxBody.id;
             ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
-            card["duration"] = duration;
+            card["duration"] = result.duration;
 
             Console.WriteLine("Start entry loop");
-            for (int i = 0; i < 20 && i<words.Count; i++) {
-                Console.WriteLine($"Create entry for: {words[i]}");
+            for (int i = 0; i < 20 && i<result.topics.Count; i++) {
+                Console.WriteLine($"Create entry for: {result.topics[i]}");
                 var entry = new Dictionary<string, object>() {
                     { "type", "text" },
-                    { "text", words[i] },
+                    { "text", result.topics[i] },
                     { "appears", new List<Dictionary<string, object>>() }
                 };
 
                 Console.WriteLine("Start location loop");
-                foreach (var result in wordLocations[words[i]]) {
-                    Console.WriteLine($"Create location for: {result.start}, {result.end}");
+                foreach (var speakerResult in result.wordLocations[result.topics[i]]) {
+                    Console.WriteLine($"Create location for: {speakerResult.start}, {speakerResult.end}");
                     var location = new Dictionary<string, object>() {
-                        { "start", result.start },
-                        { "end", result.end }
+                        { "start", speakerResult.start },
+                        { "end", speakerResult.end }
                     };
                     ((List<Dictionary<string, object>>)entry["appears"]).Add(location);
                 }
                 ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
             }
-            Console.WriteLine("== WorkLocations ==");
-            Console.WriteLine(JsonConvert.SerializeObject(wordLocations, Formatting.None));
+            Console.WriteLine("== WordLocations ==");
+            Console.WriteLine(JsonConvert.SerializeObject(result.wordLocations, Formatting.None));
 
             Console.WriteLine("== Card ==");
             Console.WriteLine(JsonConvert.SerializeObject(card, Formatting.None));
