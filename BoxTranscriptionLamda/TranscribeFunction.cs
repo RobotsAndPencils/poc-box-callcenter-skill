@@ -21,13 +21,14 @@ using System.Linq;
 using Amazon.Comprehend.Model;
 using Amazon.Comprehend;
 using System.Text.RegularExpressions;
+using Amazon.S3.Model;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
 namespace BoxTranscriptionLamda
 {
-    public class Function
+    public class TranscribeFunction
     {
         public struct JobStatus
         {
@@ -36,17 +37,8 @@ namespace BoxTranscriptionLamda
             public const string FAILED = "FAILED";
         }
 
-        public class SpeakerResult {
-            public decimal start;
-            public decimal end;
-            public string text;
-            public DetectSentimentResponse sentiment;
-        }
-
-        public const string REGION_ENVIRONMENT_VARIABLE_NAME = "AWS_REGION";
         public const int MAX_SPEAKER_LABELS = 2;//May need to be increased.
         private Regex blankPattern = new Regex("^\\W*$");
-
         private string AWS_Region { get; set; }
         private string AWS_BucketName { get; set; }
         private string TranscriptionFileName { get; set; }
@@ -54,9 +46,6 @@ namespace BoxTranscriptionLamda
 
         private AmazonTranscribeServiceClient _amazonTranscribeServiceClient { get; }
         private AmazonComprehendClient _comprehendClient { get; }
-        private Dictionary<string, List<SpeakerResult>> results = new Dictionary<string, List<SpeakerResult>>();
-
-        HashSet<string> SupportedImageTypes { get; } = new HashSet<string> { ".wav", ".mp3", ".mp3", ".flac" };
 
         /// <summary>
         /// Default constructor used by AWS Lambda to construct the function. Credentials and Region information will
@@ -65,92 +54,144 @@ namespace BoxTranscriptionLamda
         /// This constructor will also search for the environment variable overriding the default minimum confidence level
         /// for label detection.
         /// </summary>
-        public Function()
+        public TranscribeFunction()
         {
             this.S3Client = new AmazonS3Client();
             this._amazonTranscribeServiceClient = new AmazonTranscribeServiceClient();
             this._comprehendClient = new AmazonComprehendClient();
-            this.AWS_Region = System.Environment.GetEnvironmentVariable(REGION_ENVIRONMENT_VARIABLE_NAME);
+            this.AWS_Region = System.Environment.GetEnvironmentVariable("AWS_REGION");
+            this.AWS_BucketName = System.Environment.GetEnvironmentVariable("awsBucketName");
 
 
         }
 
-        /// <summary>
-        /// Constructor used for testing which will pass in the already configured service clients.
-        /// </summary>
-        /// <param name="s3Client"></param>
-        /// <param name="rekognitionClient"></param>
-        /// <param name="minConfidence"></param>
-        public Function(IAmazonS3 s3Client, string awsRegionName)
+        public static object DeserializeFromStream(Stream stream)
         {
-            this.S3Client = s3Client;
-            this.AWS_Region = awsRegionName;
-        }
+            var serializer = new JsonSerializer();
 
-        /// <summary>
-        /// A function for responding to S3 create events. It will determine if the object is an image and use Amazon Rekognition
-        /// to detect labels and add the labels as tags on the S3 object.
-        /// </summary>
-        /// <param name="input"></param>
-        /// <param name="context"></param>
-        /// <returns></returns>
-        public async Task FunctionHandler(S3Event input, ILambdaContext context)
-        {
-            if (input?.Records != null)
+            using (var sr = new StreamReader(stream))
+            using (var jsonTextReader = new JsonTextReader(sr))
             {
-                foreach (var record in input.Records)//should only be one.
-                {
-                    var fileExtension = Path.GetExtension(record.S3.Object.Key);
-                    if (!SupportedImageTypes.Contains(Path.GetExtension(record.S3.Object.Key)))
-                    {
-                        Console.WriteLine($"Object {record.S3.Bucket.Name}:{record.S3.Object.Key} is not a supported image type");
-                        continue;
-                    }
-
-                    Console.WriteLine($"File {record.S3.Bucket.Name}:{record.S3.Object.Key}");
-                    AWS_BucketName = record.S3.Bucket.Name;
-                    TranscriptionFileName = Path.GetFileNameWithoutExtension(record.S3.Object.Key) + ".json";
-                    var filePath = $"https://{record.S3.Bucket.Name}.s3.{AWS_Region}.amazonaws.com/{record.S3.Object.Key}";
-                    Console.WriteLine($"File path in was: {filePath}");
-                    var jobName = "Transcription" + record.S3.Object.Key;
-
-                    var existingJob = await GetTranscriptionJob(jobName);
-                    if (existingJob == null || existingJob?.TranscriptionJobStatus == null)
-                    {
-
-                        var newJob = await StartTranscriptionJob(jobName, filePath, fileExtension);
-                        if (newJob != null)
-                        {
-
-                            string jobStatus = newJob?.TranscriptionJobStatus.Value;
-                            if (jobStatus == JobStatus.IN_PROGRESS)
-                            {
-                                newJob = await WaitForCompletion(jobName);
-                                await ProcessTranscriptionJob(newJob);
-                            }
-                        }
-
-                    }
-                    else
-                    {
-                        switch (existingJob?.TranscriptionJobStatus.Value)
-                        {
-                            case JobStatus.IN_PROGRESS:
-                                existingJob = await WaitForCompletion(jobName);
-                                await ProcessTranscriptionJob(existingJob);
-                                break;
-                            case JobStatus.COMPLETED:
-                            case JobStatus.FAILED:
-                            default:
-                                await ProcessTranscriptionJob(existingJob);
-                                break;
-                        }
-                    }
-
-                }
+                return serializer.Deserialize(jsonTextReader);
             }
-            return;
         }
+
+        private static string GetS3FileUrl (string bucket, string key) {
+            return $"https://s3.amazonaws.com/{bucket}/{key}";
+        }
+
+        public async Task FunctionHandler(System.IO.Stream request, ILambdaContext context)
+        {
+
+            string requestStr;
+            using (StreamReader reader = new StreamReader(request))
+            {
+                requestStr = reader.ReadToEnd();
+            }
+            dynamic requestJson = JObject.Parse(requestStr);
+            dynamic inputJson = JObject.Parse(requestJson.body.Value);
+            Console.WriteLine("======== API Event =========");
+            Console.WriteLine(requestStr);
+            Console.WriteLine("======== Context =========");
+            Console.WriteLine(JsonConvert.SerializeObject(context, Formatting.None));
+            Console.WriteLine("======== Box Input (body) =========");
+            Console.WriteLine(JsonConvert.SerializeObject(inputJson, Formatting.None));
+
+
+            //var jobName = $"f{inputJson.source.id}_v{inputJson.source.file_version.id}";
+            var jobName = $"f{inputJson.source.id}";
+
+            // move file to S3 for processing (aws can not process using anything other than an S3 uir)
+            var fileUrl = BoxHelper.getFileUrl(inputJson.source.id.Value, inputJson.token);
+            Console.WriteLine($"FileUrl: {fileUrl}");
+            string fileExt = Path.GetExtension(inputJson.source.name.Value).TrimStart('.');
+            string fileName = $"{jobName}.{fileExt}";
+            string mimeType = MimeMapping.GetMimeType(fileExt);
+
+            PutObjectResponse response = await UploadBoxFileToS3(fileUrl, AWS_BucketName, mimeType, fileName);
+            Console.WriteLine("======== Put Object Response =========");
+            Console.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
+            if (response.HttpStatusCode.CompareTo(HttpStatusCode.OK) != 0) {
+                throw new Exception("Status code error");
+            }
+
+            Console.WriteLine("JobName: " + jobName);
+
+            // Check for an existing job (maybe lambda was timed out and then re-run)
+            var job = await GetTranscriptionJob(jobName);
+
+            if (job == null || job?.TranscriptionJobStatus == null) {
+                job = await StartTranscriptionJob(jobName, GetS3FileUrl(AWS_BucketName, fileName), fileExt);
+            }
+
+            switch (job?.TranscriptionJobStatus.Value) {
+                case JobStatus.IN_PROGRESS: 
+                    job = await WaitForCompletion(jobName); 
+                    break;
+                case JobStatus.FAILED:
+                    Console.WriteLine("AWS Transcription job failed. Aborting");
+                    return;
+            }
+            var result = await ProcessTranscriptionJob(job);
+            CallCenterSkill.ProcessTranscriptionResults(ref result);
+            DeleteObjectNonVersionedBucketAsync(fileName).Wait();
+            await BoxHelper.GenerateCards(result, inputJson);
+        }
+
+        private async Task DeleteObjectNonVersionedBucketAsync(string key)
+        {
+            try
+            {
+                var deleteObjectRequest = new DeleteObjectRequest
+                {
+                    BucketName = AWS_BucketName,
+                    Key = key
+                };
+
+                Console.WriteLine("Deleting an object");
+                await S3Client.DeleteObjectAsync(deleteObjectRequest);
+            }
+            catch (AmazonS3Exception e)
+            {
+                Console.WriteLine("Error encountered on server. Message:'{0}' when writing an object", e.Message);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Unknown encountered on server. Message:'{0}' when writing an object", e.Message);
+            }
+        }
+
+        private async Task<PutObjectResponse> UploadBoxFileToS3 (string url, string bucketName, string mimeType, string key) {
+            WebRequest req = WebRequest.Create(url);
+            WebResponse response = req.GetResponse();
+            Stream responseStream = response.GetResponseStream();
+
+            MemoryStream contentStream;
+
+            using (var localStream = new MemoryStream())
+            {
+                byte[] buffer = new byte[2048]; // read in chunks of 2KB
+                int bytesRead;
+                while ((bytesRead = responseStream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    localStream.Write(buffer, 0, bytesRead);
+                }
+                byte[] fileContent = localStream.ToArray();
+                contentStream = new MemoryStream(fileContent);
+            }
+
+
+            PutObjectRequest request = new PutObjectRequest
+            {
+                BucketName = bucketName,
+                ContentType = mimeType,
+                Key = key,
+                InputStream = contentStream
+            };
+            var result = await S3Client.PutObjectAsync(request);
+            return result;
+        }
+
 
         private async Task<TranscriptionJob> WaitForCompletion(string jobName)
         {
@@ -196,14 +237,14 @@ namespace BoxTranscriptionLamda
 
         }
 
-        private async Task<TranscriptionJob> StartTranscriptionJob(string jobName, string filePath, string fileExtension)
+        private async Task<TranscriptionJob> StartTranscriptionJob(string jobName, string mediaFileUri, string fileExt)
         {
 
             var transcriptionRequest = new StartTranscriptionJobRequest()
             {
                 LanguageCode = "en-US",
-                Media = new Media() { MediaFileUri = filePath },
-                MediaFormat = fileExtension.TrimStart('.'),
+                Media = new Media() { MediaFileUri = mediaFileUri },
+                MediaFormat = fileExt,
                 TranscriptionJobName = jobName,
                 Settings = new Settings()
                 {
@@ -216,8 +257,10 @@ namespace BoxTranscriptionLamda
             return getTranscribeResponse?.TranscriptionJob;
         }
 
-        private async Task ProcessTranscriptionJob(TranscriptionJob finishedJob)
+        private async Task<SkillResult> ProcessTranscriptionJob(TranscriptionJob finishedJob)
         {
+            var result = new SkillResult();
+
             if (finishedJob?.TranscriptionJobStatus.Value == JobStatus.FAILED)
             {
                 Console.WriteLine($"Transcription job failed with reason:  {finishedJob.FailureReason}");
@@ -226,20 +269,22 @@ namespace BoxTranscriptionLamda
             {
                 Console.WriteLine($"Transcription file located @: {finishedJob.Transcript.TranscriptFileUri}");
 
-               
+
                 var json = GetJobResultsForAnalsys(finishedJob.Transcript.TranscriptFileUri);
 
                 JObject transcriptionResults = JObject.Parse(json);
-                await ProcessTranscriptionResults(transcriptionResults);
-                //TODO: save all results, not just transcription
+                result = await ProcessTranscriptionResults(transcriptionResults);
 
-                var jsonResults = JsonConvert.SerializeObject(results);
-                await BoxHelper.UploadTranscriptionBytesToBox(Encoding.UTF8.GetBytes(jsonResults), TranscriptionFileName);
+                var jsonResults = JsonConvert.SerializeObject(result);
             }
+
+            return result;
         }
 
-        private async Task ProcessTranscriptionResults(JObject transcriptionResults)
+        private async Task<SkillResult> ProcessTranscriptionResults(JObject transcriptionResults)
         {
+            var result = new SkillResult();
+
             StringBuilder speakerText = new StringBuilder();
             TranscribeAlternative alternative = null;
 
@@ -259,30 +304,42 @@ namespace BoxTranscriptionLamda
             // have begin and ends. the range of the items have a 1 to 1 correlation to the 'pronunciation' transcription
             // item types. These also have ends which are outside the range of the segement strangely. So will be using segment to
             // get the speaker, then will create an inclusive range for all items under it using the being of first and end of last. 
-            foreach (var segment in segments)
-            {
-                if (!lastSpeaker.Equals(segment.speaker_label)) {
+            foreach (var segment in segments) {
+                result.duration = segment.end_time;
+                if (!lastSpeaker.Equals(segment.speaker_label))
+                {
+                    // these lines do nothing the first iteration, but tie up last
+                    // speaker result when the speaker is changing
                     currentSpeakerResult.text = speakerText.ToString();
                     speakerText = new StringBuilder();
+
+                    // create new speaker result for new speaker - or first speaker on first iteration 
+                    var idx = result.speakerLabels.IndexOf(segment.speaker_label);
+                    if (idx == -1) {
+                        idx = result.speakerLabels.Count;
+                        result.speakerLabels.Add(segment.speaker_label);
+                        result.resultBySpeaker.Add(idx, new List<SpeakerResult>());
+                    }
+
                     currentSpeakerResult = new SpeakerResult();
+                    currentSpeakerResult.speaker = idx;
                     ConfigureTimeRange(ref currentSpeakerResult, segment);
                     lastSpeaker = segment.speaker_label;
 
+                    result.resultBySpeaker[idx].Add(currentSpeakerResult);
+                    result.resultByTime.Add(currentSpeakerResult);
 
-                    if (!results.ContainsKey(lastSpeaker)) {
-                        results.Add(lastSpeaker, new List<SpeakerResult>());
-                    }
-                    results[lastSpeaker].Add(currentSpeakerResult);
-
-                } else {
+                }
+                else
+                {
                     ConfigureTimeRange(ref currentSpeakerResult, segment);
                 }
 
-                for (; itemIdx < ti.Count 
+                for (; itemIdx < ti.Count
                      && ((currentSpeakerResult.start <= ti[itemIdx].start_time && ti[itemIdx].end_time <= currentSpeakerResult.end)
                          || (ti[itemIdx].start_time == 0m))
                      ; itemIdx++)
-                    {
+                {
                     alternative = ti[itemIdx].alternatives.First();
                     if (alternative.content.Equals("[SILENCE]"))
                     {
@@ -293,35 +350,41 @@ namespace BoxTranscriptionLamda
                         speakerText.Append(alternative.content);
                     }
                     speakerText.Append(" ");
-                }          
+                }
 
             }
             currentSpeakerResult.text = speakerText.ToString();
 
 
             Console.WriteLine("Full Results (Transcription + sentiment):");
-            List<string> keyList = new List<string>(results.Keys);
-            for (int keyIdx = 0; keyIdx < keyList.Count ; keyIdx++) {
+            List<int> keyList = new List<int>(result.resultBySpeaker.Keys);
+            for (int keyIdx = 0; keyIdx < keyList.Count; keyIdx++)
+            {
                 var spkKey = keyList[keyIdx];
                 Console.WriteLine($"Speaker: {spkKey}");
                 // this should be done in paralell
-                for (int resultIdx = 0; resultIdx < results[spkKey].Count; resultIdx++) {
-                    var speakerResult = results[spkKey][resultIdx];
-                    if (!isBlankText(results[spkKey][resultIdx].text))
+                for (int resultIdx = 0; resultIdx < result.resultBySpeaker[spkKey].Count; resultIdx++)
+                {
+                    var speakerResult = result.resultBySpeaker[spkKey][resultIdx];
+                    if (!IsBlankText(result.resultBySpeaker[spkKey][resultIdx].text))
                     {
-                        speakerResult.sentiment = await GenerateSentiment(results[spkKey][resultIdx].text);
-                        LogSentimate(results[spkKey][resultIdx].sentiment, spkKey, results[spkKey][resultIdx].text);
+                        speakerResult.sentiment = await GenerateSentiment(result.resultBySpeaker[spkKey][resultIdx].text);
+                        LogSentimate(result.resultBySpeaker[spkKey][resultIdx].sentiment, spkKey, result.resultBySpeaker[spkKey][resultIdx].text);
                     }
                 }
             }
+
+            return result;
         }
 
 
-        private bool isBlankText (string text) {
+        private bool IsBlankText(string text)
+        {
             return blankPattern.Match(text).Success;
         }
 
-        private void ConfigureTimeRange (ref SpeakerResult currentSpeakerResult, Segment segment) {
+        private void ConfigureTimeRange(ref SpeakerResult currentSpeakerResult, Segment segment)
+        {
             foreach (var item in segment.items)
             {
                 if (currentSpeakerResult.start == 0m) currentSpeakerResult.start = item.start_time;
@@ -329,11 +392,11 @@ namespace BoxTranscriptionLamda
             }
         }
 
-        private static void LogSentimate(DetectSentimentResponse speakerSentimate, string speaker, string text)
+        private static void LogSentimate(DetectSentimentResponse speakerSentimate, int speaker, string text)
         {
-            Console.WriteLine($"Speaker: {speaker}");
+            Console.WriteLine($"Speaker: spk_{speaker}");
             Console.WriteLine($"text: {text}");
-            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value}");
+            Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value }");
         }
 
         public async Task<DetectSentimentResponse> GenerateSentiment(string text)

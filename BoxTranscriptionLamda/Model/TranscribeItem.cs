@@ -14,7 +14,20 @@ namespace BoxTranscriptionLamda
 
     public class TranscribeAlternative
     {
-        public double confidence { get; set; }
+        private double _confidence = 0;
+        public double? confidence {
+            get
+            {
+                return _confidence;
+            }
+            set {
+                if (value == null) {
+                    _confidence = 0;
+                } else {
+                    _confidence = (double)value;
+                }
+            } 
+        }
         public string content { get; set; }
     }
 }

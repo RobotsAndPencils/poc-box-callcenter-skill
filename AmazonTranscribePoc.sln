@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxTranscriptionPOC", "BoxT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileUploadwebHookLambda", "FileUploadwebHookLambda\FileUploadwebHookLambda.csproj", "{06A16436-143D-46D2-BE7C-D0023B7EC5DA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoxTranscriptionLamda", "BoxTranscriptionLamda\BoxTranscriptionLamda.csproj", "{A2857C9C-F7A0-4290-A5FE-40F1F7A8B348}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{06A16436-143D-46D2-BE7C-D0023B7EC5DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{06A16436-143D-46D2-BE7C-D0023B7EC5DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06A16436-143D-46D2-BE7C-D0023B7EC5DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A2857C9C-F7A0-4290-A5FE-40F1F7A8B348}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A2857C9C-F7A0-4290-A5FE-40F1F7A8B348}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A2857C9C-F7A0-4290-A5FE-40F1F7A8B348}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A2857C9C-F7A0-4290-A5FE-40F1F7A8B348}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

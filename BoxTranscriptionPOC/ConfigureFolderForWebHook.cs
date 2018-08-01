@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace BoxTranscriptionPOC
 {
-    public class ConfigreFolderForWebHook
+    public class ConfigureFolderForWebHook
     {
         public static async Task ExecuteMainAsync(string webHookUri)
         {
