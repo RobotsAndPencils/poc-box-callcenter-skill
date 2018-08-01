@@ -30,12 +30,17 @@ namespace BoxTranscriptionLamda
             var session = new OAuthSession(boxBody.token.write.access_token.Value, string.Empty, 3600, "bearer");
             var client = new BoxClient(config, session);
 
+            if (client == null)
+            {
+                throw new Exception("Unable to create box client");
+            }
 
             Console.WriteLine("Created box client using write token");
 
             var cards = new List<Dictionary<string, object>>
             {
-                GeneateTopicsKeywordCard(result, boxBody, client)
+                GeneateTopicsKeywordCard(result, boxBody, client),
+                GeneateScriptAdherenceKeywordCard(result, boxBody, client)
             };
             var skillsMetadata = new Dictionary<string, object>(){
                 { "cards", cards }
@@ -65,12 +70,28 @@ namespace BoxTranscriptionLamda
             }
         }
 
+        public static Dictionary<string, object> GeneateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
+        {
+            var card = GetKeywordCardTemplate();
 
-        // 
-        public static void AdjustLabels (ref SkillResult result) {
-            
-            
+            card["id"] = "ScriptAdherenceCard";
+            ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
+            card["duration"] = result.duration;
+            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Script Adherence";
+            foreach (var phraseKey in result.scriptChecks.Keys)
+            {
+                var entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", $"{phraseKey}: {result.scriptChecks[phraseKey]}" },
+                    { "appears", new List<Dictionary<string, object>>() }
+                };
+
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            }
+            return card;
+
         }
+
 
 
 
@@ -80,15 +101,13 @@ namespace BoxTranscriptionLamda
         // TODO: should calculate proximity to find phrases that appear together
         public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            if (client == null)
-            {
-                throw new ArgumentNullException(nameof(client));
-            }
+            
 
             var card = GetKeywordCardTemplate();
             Console.WriteLine("Assign top level properties");
-            card["id"] = boxBody.id;
+            card["id"] = "TopicCard";
             ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
+            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Topics";
             card["duration"] = result.duration;
 
             Console.WriteLine("Start entry loop");
@@ -133,7 +152,7 @@ namespace BoxTranscriptionLamda
                         { "id", "INJECTED" }
                 }},
                 { "skill_card_title", new Dictionary<string, object>() {
-                        { "message", "Topics" }
+                        { "message", "INJECTED" }
                 }},
                 { "duration", 0 },
                 { "entries",  new List<Dictionary<string, object>>() }
@@ -141,7 +160,6 @@ namespace BoxTranscriptionLamda
 
             return template;
         }
-
     }
 
 }
