@@ -12,17 +12,21 @@ namespace BoxTranscriptionLamda
     public static class CallCenterSkill
     {
         private static readonly List<string> stopWords;
-        private static readonly Dictionary<string, string> scriptPhrases;
+        private static Dictionary<string, string> scriptPhrases = new Dictionary<string, string>();
 
         static CallCenterSkill () {
+            Console.WriteLine("Initializing: 1");
             var words = JArray.Parse(System.Environment.GetEnvironmentVariable("stopWords"));
             stopWords = words.ToObject<List<string>>();
-            var phrases = JObject.Parse(System.Environment.GetEnvironmentVariable("scriptPhrases"));
-            scriptPhrases = words.ToObject<Dictionary<string, string>>();
-            var keys = scriptPhrases.Keys;
-            foreach (var key in keys) {
-                scriptPhrases[key] = CleanText(scriptPhrases[key]);
+            Console.WriteLine("Initializing: 2");
+            var phrases = JObject.Parse("{\"greeting\":\"thank you for calling support\",\"offer help\":\"how may I help you?\",\"full service\":\"is there anything else I can help you with\",\"satisfaction\":\"are you satisfied with the support you received?\",\"closing\":\"have a wonderful day\"}");
+            var scriptPhrasesTemp = phrases.ToObject<Dictionary<string, string>>();
+            Console.WriteLine("Initializing: 3");
+
+            foreach (var key in scriptPhrasesTemp.Keys) {
+                scriptPhrases[key] = CleanText(scriptPhrasesTemp[key]);
             }
+            Console.WriteLine("Initializing: 4");
         }
 
         public static void ProcessTranscriptionResults (ref SkillResult result) {
@@ -34,6 +38,12 @@ namespace BoxTranscriptionLamda
         private static void AdjustSpeakerTitles(ref SkillResult result)
         {
             result.speakerLabels[result.supportIndex] = "Support";
+            var spIdx = 1;
+            for (var i = 0; i < result.speakerLabels.Count; i++) {
+                if (i != result.supportIndex) {
+                    result.speakerLabels[i] = "Customer" + (result.speakerLabels.Count==2?"":$" {spIdx++}");
+                }
+            }
         }
 
         public static void GenerateScriptAdherence (ref SkillResult result) {

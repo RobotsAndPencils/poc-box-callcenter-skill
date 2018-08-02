@@ -20,6 +20,7 @@ namespace BoxTranscriptionLamda
     public static class BoxHelper
     {
         private static string BOX_API_ENDPOINT = System.Environment.GetEnvironmentVariable("boxApiEndpoint");
+        private enum SkillType { timeline, keyword, transcript };
 
         public static string getFileUrl (string id, dynamic token) {
             return $"{BOX_API_ENDPOINT}/files/{id}/content?access_token={token.read.access_token}";
@@ -40,8 +41,11 @@ namespace BoxTranscriptionLamda
             var cards = new List<Dictionary<string, object>>
             {
                 GeneateTopicsKeywordCard(result, boxBody, client),
-                GeneateScriptAdherenceKeywordCard(result, boxBody, client)
+                GeneateScriptAdherenceKeywordCard(result, boxBody, client),
+                GeneateTranscriptCard(result, boxBody, client)
             };
+            //cards.AddRange(GeneateSentimentTimelineCards(result, boxBody, client));
+
             var skillsMetadata = new Dictionary<string, object>(){
                 { "cards", cards }
             };
@@ -70,14 +74,37 @@ namespace BoxTranscriptionLamda
             }
         }
 
+        private static List<Dictionary<string, object>> GeneateSentimentTimelineCards(SkillResult result, dynamic boxBody, BoxClient client)
+        {
+            var card = GetSkillCardTemplate(SkillType.transcript, boxBody, "Transcript", result.duration);
+            throw new NotImplementedException();
+        }
+
+        private static Dictionary<string, object> GeneateTranscriptCard(SkillResult result, dynamic boxBody, BoxClient client)
+        {
+            var card = GetSkillCardTemplate(SkillType.transcript, boxBody, "Transcript", result.duration);
+            foreach (var speakerResult in result.resultByTime)
+            {
+                var entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", $"[{result.speakerLabels[speakerResult.speaker]}]  {speakerResult.text}" },
+                    { "appears", new List<Dictionary<string, object>>() {
+                        new Dictionary<string, object>() {
+                            { "start", speakerResult.start },
+                            { "end", speakerResult.end }
+                        }
+                    } }
+                };
+
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            }
+            return card;
+        }
+
         public static Dictionary<string, object> GeneateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            var card = GetKeywordCardTemplate();
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Script Adherence", result.duration);
 
-            card["id"] = "ScriptAdherenceCard";
-            ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
-            card["duration"] = result.duration;
-            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Script Adherence";
             foreach (var phraseKey in result.scriptChecks.Keys)
             {
                 var entry = new Dictionary<string, object>() {
@@ -101,15 +128,7 @@ namespace BoxTranscriptionLamda
         // TODO: should calculate proximity to find phrases that appear together
         public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            
-
-            var card = GetKeywordCardTemplate();
-            Console.WriteLine("Assign top level properties");
-            card["id"] = "TopicCard";
-            ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
-            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Topics";
-            card["duration"] = result.duration;
-
+            var card = GetSkillCardTemplate(SkillType.keyword, "TopicCard", boxBody, "Topics", result.duration);
             Console.WriteLine("Start entry loop");
             for (int i = 0; i < 20 && i<result.topics.Count; i++) {
                 Console.WriteLine($"Create entry for: {result.topics[i]}");
@@ -138,23 +157,24 @@ namespace BoxTranscriptionLamda
 
             return card;
         }
-        private static Dictionary<string, object> GetKeywordCardTemplate()
+
+        private static Dictionary<string, object> GetSkillCardTemplate(SkillType type, dynamic boxBody, string title, decimal duration)
         {
             var template = new Dictionary<string, object>() {
                 { "type", "skill_card" },
-                { "skill_card_type", "keyword" },
+                { "skill_card_type", type.ToString() },
                 { "skill", new Dictionary<string, object>() {
                         { "type", "service" },
-                        { "id", "INJECTED" }
+                        { "id", $"{title.Replace(" ","")}_{boxBody.id.Value}" }
                 }},
                 { "invocation", new Dictionary<string, object>() {
                         { "type", "skill_invocation" },
-                        { "id", "INJECTED" }
+                        { "id", $"I{boxBody.id.Value}" }
                 }},
                 { "skill_card_title", new Dictionary<string, object>() {
-                        { "message", "INJECTED" }
+                        { "message", title }
                 }},
-                { "duration", 0 },
+                { "duration", duration },
                 { "entries",  new List<Dictionary<string, object>>() }
             };
 
