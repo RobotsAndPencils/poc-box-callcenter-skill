@@ -1,4 +1,5 @@
-﻿using Box.V2;
+﻿using Amazon.Comprehend.Model;
+using Box.V2;
 using Box.V2.Auth;
 using Box.V2.Config;
 using Box.V2.Exceptions;
@@ -44,7 +45,10 @@ namespace BoxTranscriptionLamda
                 GeneateScriptAdherenceKeywordCard(result, boxBody, client),
                 GeneateTranscriptCard(result, boxBody, client)
             };
-            //cards.AddRange(GeneateSentimentTimelineCards(result, boxBody, client));
+            cards.AddRange(GeneateSentimentTimelineCards(result, boxBody, client));
+
+            Console.WriteLine("======== Cards =========");
+            Console.WriteLine(JsonConvert.SerializeObject(cards, Formatting.None));
 
             var skillsMetadata = new Dictionary<string, object>(){
                 { "cards", cards }
@@ -76,8 +80,31 @@ namespace BoxTranscriptionLamda
 
         private static List<Dictionary<string, object>> GeneateSentimentTimelineCards(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            var card = GetSkillCardTemplate(SkillType.transcript, boxBody, "Transcript", result.duration);
-            throw new NotImplementedException();
+            List<Dictionary<string, object>> cards = new List<Dictionary<string, object>>();
+
+            foreach (var speaker in result.resultsBySpeakerSentiment.Keys) {
+                var card = GetSkillCardTemplate(SkillType.timeline, boxBody, $"{result.speakerLabels[speaker]} Sentiment", result.duration);
+                foreach (var sentValue in result.resultsBySpeakerSentiment[speaker].Keys) {
+                    var entry = new Dictionary<string, object>() {
+                        { "type", "text" },
+                        { "text", sentValue },
+                        { "appears", new List<Dictionary<string, object>>() }
+                    };
+
+                    foreach (var speakerResult in result.resultsBySpeakerSentiment[speaker][sentValue])
+                        {
+                            var location = new Dictionary<string, object>() {
+                            { "start", speakerResult.start },
+                            { "end", speakerResult.end }
+                        };
+                        ((List<Dictionary<string, object>>)entry["appears"]).Add(location);
+                    }
+                    ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+                }
+
+                cards.Add(card);             
+            }
+            return cards;
         }
 
         private static Dictionary<string, object> GeneateTranscriptCard(SkillResult result, dynamic boxBody, BoxClient client)
@@ -128,19 +155,24 @@ namespace BoxTranscriptionLamda
         // TODO: should calculate proximity to find phrases that appear together
         public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
         {
-            var card = GetSkillCardTemplate(SkillType.keyword, "TopicCard", boxBody, "Topics", result.duration);
-            Console.WriteLine("Start entry loop");
-            for (int i = 0; i < 20 && i<result.topics.Count; i++) {
-                Console.WriteLine($"Create entry for: {result.topics[i]}");
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Topics", result.duration);
+            var topics = new List<string>(result.topicLocations.Keys);
+            var count = 0;
+
+            topics.Sort(delegate (string a, string b)
+            {
+                return result.topicLocations[a].Count.CompareTo(result.topicLocations[b].Count);
+            });
+
+            foreach (var topic in topics) {
+                if (count++ == 20) break;
                 var entry = new Dictionary<string, object>() {
                     { "type", "text" },
-                    { "text", result.topics[i] },
+                    { "text", topic },
                     { "appears", new List<Dictionary<string, object>>() }
                 };
 
-                Console.WriteLine("Start location loop");
-                foreach (var speakerResult in result.wordLocations[result.topics[i]]) {
-                    Console.WriteLine($"Create location for: {speakerResult.start}, {speakerResult.end}");
+                foreach (var speakerResult in result.topicLocations[topic]) {
                     var location = new Dictionary<string, object>() {
                         { "start", speakerResult.start },
                         { "end", speakerResult.end }
@@ -149,11 +181,6 @@ namespace BoxTranscriptionLamda
                 }
                 ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
             }
-            Console.WriteLine("== WordLocations ==");
-            Console.WriteLine(JsonConvert.SerializeObject(result.wordLocations, Formatting.None));
-
-            Console.WriteLine("== Card ==");
-            Console.WriteLine(JsonConvert.SerializeObject(card, Formatting.None));
 
             return card;
         }

@@ -305,7 +305,10 @@ namespace BoxTranscriptionLamda
             // item types. These also have ends which are outside the range of the segement strangely. So will be using segment to
             // get the speaker, then will create an inclusive range for all items under it using the being of first and end of last. 
             foreach (var segment in segments) {
+                if (segment.items.Length == 0) continue;
+
                 result.duration = segment.end_time;
+
                 if (!lastSpeaker.Equals(segment.speaker_label))
                 {
                     // these lines do nothing the first iteration, but tie up last
@@ -355,21 +358,23 @@ namespace BoxTranscriptionLamda
             }
             currentSpeakerResult.text = speakerText.ToString();
 
-
-            Console.WriteLine("Full Results (Transcription + sentiment):");
+            // Call AWS Comprehend client to get sentiment for all speaker results
             List<int> keyList = new List<int>(result.resultBySpeaker.Keys);
             for (int keyIdx = 0; keyIdx < keyList.Count; keyIdx++)
             {
                 var spkKey = keyList[keyIdx];
-                Console.WriteLine($"Speaker: {spkKey}");
-                // this should be done in paralell
-                for (int resultIdx = 0; resultIdx < result.resultBySpeaker[spkKey].Count; resultIdx++)
+                for (int resultIdx = result.resultBySpeaker[spkKey].Count-1; resultIdx >= 0; resultIdx--)
                 {
-                    var speakerResult = result.resultBySpeaker[spkKey][resultIdx];
-                    if (!IsBlankText(result.resultBySpeaker[spkKey][resultIdx].text))
-                    {
-                        speakerResult.sentiment = await GenerateSentiment(result.resultBySpeaker[spkKey][resultIdx].text);
-                        LogSentimate(result.resultBySpeaker[spkKey][resultIdx].sentiment, spkKey, result.resultBySpeaker[spkKey][resultIdx].text);
+                    if (!IsBlankText(result.resultBySpeaker[spkKey][resultIdx].text)) {
+                        var speakerResult = result.resultBySpeaker[spkKey][resultIdx];
+                        speakerResult.sentiment = await DetermineSentiment(result.resultBySpeaker[spkKey][resultIdx].text);
+                        var topics = await DetermineTopic(result.resultBySpeaker[spkKey][resultIdx].text);
+                        foreach (var topic in topics) {
+                            if (!result.topicLocations.ContainsKey(topic.Text)) {
+                                result.topicLocations.Add(topic.Text, new List<SpeakerResult>());
+                            }
+                            result.topicLocations[topic.Text].Add(speakerResult);
+                        }
                     }
                 }
             }
@@ -387,7 +392,7 @@ namespace BoxTranscriptionLamda
         {
             foreach (var item in segment.items)
             {
-                if (currentSpeakerResult.start == 0m) currentSpeakerResult.start = item.start_time;
+                if (currentSpeakerResult.end == 0m) currentSpeakerResult.start = item.start_time;
                 currentSpeakerResult.end = item.end_time;
             }
         }
@@ -399,11 +404,9 @@ namespace BoxTranscriptionLamda
             Console.WriteLine($"sentiment: { speakerSentimate.Sentiment.Value }");
         }
 
-        public async Task<DetectSentimentResponse> GenerateSentiment(string text)
+        public async Task<DetectSentimentResponse> DetermineSentiment(string text)
         {
-
-            // Call DetectKeyPhrases API
-            Console.WriteLine("Calling DetectSentiment");
+            // Call DetectKeyPhrases API        
             DetectSentimentRequest detectSentimentRequest = new DetectSentimentRequest()
             {
                 Text = text,
@@ -411,8 +414,29 @@ namespace BoxTranscriptionLamda
             };
             DetectSentimentResponse detectSentimentResponse = await _comprehendClient.DetectSentimentAsync(detectSentimentRequest);
 
-            Console.WriteLine(detectSentimentResponse?.Sentiment);
             return detectSentimentResponse;
+        }
+        public async Task<List<KeyPhrase>> DetermineTopic(string text)
+        {
+            DetectKeyPhrasesRequest request = new DetectKeyPhrasesRequest() {
+                LanguageCode = "en",
+                Text = text
+            };
+            DetectKeyPhrasesResponse response = await _comprehendClient.DetectKeyPhrasesAsync(request);
+            var result = new List<KeyPhrase>();
+            // Filter using a score of .9 as the threshold
+            if (response != null && response.KeyPhrases.Count > 0)
+            {
+                foreach (var phrase in response.KeyPhrases) {
+                    if (phrase.Score>-.7 && phrase.Text.Length>4) {
+                        Console.WriteLine($"=== Phrase [{phrase.Text}] score: {phrase.Score}");
+                        var str = phrase.Text;
+                        phrase.Text = str.Remove(1).ToUpper() + str.Remove(0, 1).ToLower();
+                        result.Add(phrase);
+                    }
+                }
+            }
+            return result;
         }
         private string GetJobResultsForAnalsys(string transcriptFileUri)
         {
