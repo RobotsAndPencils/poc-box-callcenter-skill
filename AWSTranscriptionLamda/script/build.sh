@@ -1,2 +1,0 @@
-cd ..
-dotnet publish

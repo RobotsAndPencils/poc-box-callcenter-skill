@@ -1,36 +1,27 @@
-﻿using Amazon.Comprehend.Model;
-using Box.V2;
+﻿using Box.V2;
 using Box.V2.Auth;
 using Box.V2.Config;
-using Box.V2.Exceptions;
-using Box.V2.JWTAuth;
 using Box.V2.Models;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace BoxTranscriptionLamda
 {
     public static class BoxHelper
     {
-        private static string BOX_API_ENDPOINT = System.Environment.GetEnvironmentVariable("boxApiEndpoint");
         private enum SkillType { timeline, keyword, transcript };
+        private static Configuration config = Configuration.GetInstance.Result;
 
         public static string getFileUrl (string id, dynamic token) {
-            return $"{BOX_API_ENDPOINT}/files/{id}/content?access_token={token.read.access_token}";
+            return $"{config.BoxApiEndpoint}/files/{id}/content?access_token={token.read.access_token}";
         }
         public static async Task GenerateCards(SkillResult result, dynamic boxBody)
         {
-            var config = new BoxConfig(string.Empty, string.Empty, new Uri("http://boxsdk"));
+            var boxConfig = new BoxConfig(string.Empty, string.Empty, new Uri(config.BoxApiUrl));
             var session = new OAuthSession(boxBody.token.write.access_token.Value, string.Empty, 3600, "bearer");
-            var client = new BoxClient(config, session);
+            var client = new BoxClient(boxConfig, session);
 
             if (client == null)
             {
@@ -41,11 +32,12 @@ namespace BoxTranscriptionLamda
 
             var cards = new List<Dictionary<string, object>>
             {
-                GeneateTopicsKeywordCard(result, boxBody, client),
-                GeneateScriptAdherenceKeywordCard(result, boxBody, client),
-                GeneateTranscriptCard(result, boxBody, client)
+                GeneateScoreKeywordCard(result, boxBody),
+                GeneateTopicsKeywordCard(result, boxBody),
+                GeneateScriptAdherenceKeywordCard(result, boxBody),
+                GeneateTranscriptCard(result, boxBody)
             };
-            cards.AddRange(GeneateSentimentTimelineCards(result, boxBody, client));
+            cards.AddRange(GeneateSentimentTimelineCards(result, boxBody));
 
             Console.WriteLine("======== Cards =========");
             Console.WriteLine(JsonConvert.SerializeObject(cards, Formatting.None));
@@ -78,7 +70,34 @@ namespace BoxTranscriptionLamda
             }
         }
 
-        private static List<Dictionary<string, object>> GeneateSentimentTimelineCards(SkillResult result, dynamic boxBody, BoxClient client)
+        private static Dictionary<string, object> GeneateScoreKeywordCard(SkillResult result, dynamic boxBody)
+        {
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Support Score", result.duration);
+
+            var entry = new Dictionary<string, object>() {
+                { "type", "text" },
+                { "text", $"Value: {result.supportScore}" }               
+            };
+            ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+
+            if (result.supportScore <= 0m) {
+                entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", "Followup: Negative" }
+                };
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            } else if (result.supportScore > 4m) {
+                entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", "Followup: Positive" }               
+                };
+                 ((List<Dictionary<string, object>>) card["entries"]).Add(entry);
+            }
+        
+            return card;
+        }
+
+        private static List<Dictionary<string, object>> GeneateSentimentTimelineCards(SkillResult result, dynamic boxBody)
         {
             List<Dictionary<string, object>> cards = new List<Dictionary<string, object>>();
 
@@ -107,7 +126,7 @@ namespace BoxTranscriptionLamda
             return cards;
         }
 
-        private static Dictionary<string, object> GeneateTranscriptCard(SkillResult result, dynamic boxBody, BoxClient client)
+        private static Dictionary<string, object> GeneateTranscriptCard(SkillResult result, dynamic boxBody)
         {
             var card = GetSkillCardTemplate(SkillType.transcript, boxBody, "Transcript", result.duration);
             foreach (var speakerResult in result.resultByTime)
@@ -128,7 +147,7 @@ namespace BoxTranscriptionLamda
             return card;
         }
 
-        public static Dictionary<string, object> GeneateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
+        public static Dictionary<string, object> GeneateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody)
         {
             var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Script Adherence", result.duration);
 
@@ -153,7 +172,7 @@ namespace BoxTranscriptionLamda
         //words more than 5 characters. 
         // TODO: should have common word list to ignore instead of <5 chars
         // TODO: should calculate proximity to find phrases that appear together
-        public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
+        public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody)
         {
             var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Topics", result.duration);
             var topics = new List<string>(result.topicLocations.Keys);

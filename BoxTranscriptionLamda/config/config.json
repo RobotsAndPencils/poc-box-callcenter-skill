@@ -1,0 +1,14 @@
+{
+  "box": {
+    "apiUrl": "http://boxsdk"
+  },
+  "skillCards":  {
+    "scriptAdherence": {
+      "greeting": "thank you for calling support",
+      "offer help": "how may I help you",
+      "full service": "is there anything else I can help you with",
+      "satisfaction": "are you satisfied with the support you received",
+      "closing": "have a wonderful day"
+    }
+  }
+}

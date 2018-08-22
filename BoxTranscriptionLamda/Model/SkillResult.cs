@@ -14,6 +14,7 @@ namespace BoxTranscriptionLamda
         public Dictionary<string, Boolean> scriptChecks;
         public Dictionary<string, List<SpeakerResult>> topicLocations;
         public List<string> topics;
+        public decimal supportScore = 0;
         public int supportIndex = 0;
 
         public SkillResult()
