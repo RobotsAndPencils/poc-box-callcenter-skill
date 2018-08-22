@@ -17,7 +17,7 @@ namespace BoxTranscriptionTest
         [TestMethod]
         public void TestFindsAllScriptComponents()
         {
-            JObject jsonResult = TestHelper.loadJObject("goodScriptAdherence_CallCenterSkill_GenerateScriptAdherence");
+            JObject jsonResult = TestHelper.loadJObject("goodScriptAdherence_GenerateScriptAdherence");
             var result = jsonResult.ToObject<BoxTranscriptionLamda.SkillResult>();
             BoxTranscriptionLamda.CallCenterSkill.GenerateScriptAdherence(ref result);
             var count = 0;
@@ -30,7 +30,7 @@ namespace BoxTranscriptionTest
         [TestMethod]
         public void TestFindsAllScriptComponentsTopLevel()
         {
-            JObject jsonResult = TestHelper.loadJObject("goodScriptAdherence_CallCenterSkill_ProcessTranscriptionResults");
+            JObject jsonResult = TestHelper.loadJObject("goodScriptAdherence_ProcessTranscriptionResults");
             var result = jsonResult.ToObject<BoxTranscriptionLamda.SkillResult>();
             BoxTranscriptionLamda.CallCenterSkill.ProcessTranscriptionResults(ref result);
             var count = 0;
