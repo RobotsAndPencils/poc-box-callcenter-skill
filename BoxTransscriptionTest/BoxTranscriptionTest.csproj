@@ -19,6 +19,9 @@
     <Folder Include="testData\" />
   </ItemGroup>
   <ItemGroup>
+    <None Remove="testData\goodScriptAdherence_GenerateScriptAdherence.json" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="testData\goodScriptAdherence.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -26,6 +29,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="testData\goodScriptAdherence_CallCenterSkill.ProcessTranscriptionResults.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="testData\goodScriptAdherence_GenerateScriptAdherence1.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="testData\goodScriptAdherence_Final.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

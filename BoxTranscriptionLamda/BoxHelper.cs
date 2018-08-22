@@ -28,7 +28,8 @@ namespace BoxTranscriptionLamda
                 throw new Exception("Unable to create box client");
             }
 
-            Console.WriteLine("Created box client using write token");
+            Console.WriteLine("======== BoxHelper Result =========");
+            Console.WriteLine(JsonConvert.SerializeObject(result, Formatting.None));
 
             var cards = new List<Dictionary<string, object>>
             {

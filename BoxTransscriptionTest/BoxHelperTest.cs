@@ -19,7 +19,7 @@ namespace BoxTranscriptionTest
         [TestMethod]
         public void TestFindsAllScriptComponents()
         {
-            var result = TestHelper.loadJObject("goodScriptAdherence_GenerateScriptAdherence.").ToObject<BoxTranscriptionLamda.SkillResult>();
+            var result = TestHelper.loadJObject("goodScriptAdherence_Final").ToObject<BoxTranscriptionLamda.SkillResult>();
 
             var skillCard = BoxTranscriptionLamda.BoxHelper.GeneateScriptAdherenceKeywordCard(result, mockBoxBody);          
 
@@ -30,9 +30,10 @@ namespace BoxTranscriptionTest
 
         }
 
+        //TODO: Remove Me
         [TestMethod]
         public void RemoveMe() {
-            var result = TestHelper.loadJObject("goodScriptAdherence_GenerateScriptAdherence.").ToObject<BoxTranscriptionLamda.SkillResult>();
+            var result = TestHelper.loadJObject("goodScriptAdherence_Final").ToObject<BoxTranscriptionLamda.SkillResult>();
 
             var skillCard = BoxTranscriptionLamda.BoxHelper.GenerateCards(result, mockBoxBody);       
         }
