@@ -21,6 +21,8 @@ namespace BoxTranscriptionLamda
         public string BoxApiEndpoint { get; }
         public string BoxApiUrl { get; set; }
         public JObject ScriptAdherence { get; set; }
+        public JObject SentimentImages { get; set; } //map positive, neutral, negative to image url
+        public JObject PeopleImages { get; set; }  //map customer/support to arrays of image urls
 
         public Configuration()
         {
@@ -50,7 +52,8 @@ namespace BoxTranscriptionLamda
             // Initialize json sourced properties
             this.BoxApiUrl = envJson.box.apiUrl.Value;
             this.ScriptAdherence = envJson.skillCards.scriptAdherence;
-
+            this.SentimentImages = envJson.images.sentiment;
+            this.PeopleImages = envJson.images.people;
         } 
 
         private async Task<string> GetS3FileContent(string bucket, string key)

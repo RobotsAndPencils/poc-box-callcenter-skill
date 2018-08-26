@@ -37,14 +37,14 @@ namespace BoxTranscriptionLamda
 
         private static void CalculateSupportScore(ref SkillResult result)
         {
-            var score = 0m;
+            var score = 1m;
             foreach (var check in result.scriptChecks) {
                 score += check.Value ? .5m : -.75m;
             }
 
             if (result.resultsBySpeakerSentiment[result.supportIndex].ContainsKey(NEGATIVE))
             {
-                score += 1m - (0.4m * result.resultsBySpeakerSentiment[result.supportIndex][NEGATIVE].Count);
+                score += 1m - (0.05m * result.resultsBySpeakerSentiment[result.supportIndex][NEGATIVE].Count);
             }
 
             //TODO: bucketize across time and aggregate sentiment to see if moves from lower to higher (slope)
@@ -52,11 +52,11 @@ namespace BoxTranscriptionLamda
                 if (tuple.Key == result.supportIndex) continue;
                 if (tuple.Value.ContainsKey(NEGATIVE))
                 {
-                    score += 0m - (0.2m * tuple.Value[NEGATIVE].Count);
+                    score += 0m - (0.05m * tuple.Value[NEGATIVE].Count);
                 }
                 if (tuple.Value.ContainsKey(POSITIVE))
                 {
-                    score += (0.3m * tuple.Value[POSITIVE].Count);
+                    score += (0.1m * tuple.Value[POSITIVE].Count);
                 }
             }
 
@@ -140,8 +140,9 @@ namespace BoxTranscriptionLamda
                 var phraseCount = 0;
                 foreach (var phraseKey in scriptPhrases.Keys) {
                     foreach (var results in result.resultBySpeaker[speaker]) {
-                        var found = CleanText(results.text).Contains(scriptPhrases[phraseKey]);
-                        if (found) {
+                        var found = LevenshteinDistance.SearchPercent(scriptPhrases[phraseKey], CleanText(results.text));
+                        //var found = CleanText(results.text).Contains(scriptPhrases[phraseKey]);
+                        if (found >= .8m) {
                             scriptChecks.Add(phraseKey, true);
                             break;
                         }

@@ -31,5 +31,8 @@
     <None Update="testData\goodScriptAdherence_ProcessTranscriptionResults.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="testData\levenshteinDistance.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

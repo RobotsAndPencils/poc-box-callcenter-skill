@@ -37,6 +37,13 @@ namespace BoxTranscriptionTest
             var config = BoxTranscriptionLamda.Configuration.GetInstance.Result;
             Assert.IsNotNull(config.BoxApiUrl);
             Assert.IsNotNull(config.ScriptAdherence);
+            Assert.IsNotNull(config.PeopleImages);
+            Assert.IsTrue(config.PeopleImages.ContainsKey("customer"));
+            Assert.IsTrue(config.PeopleImages.ContainsKey("support"));
+            Assert.IsNotNull(config.SentimentImages);
+            Assert.IsTrue(config.SentimentImages.ContainsKey("positive"));
+            Assert.IsTrue(config.SentimentImages.ContainsKey("neutral"));
+            Assert.IsTrue(config.SentimentImages.ContainsKey("negative"));
         }
 
     }

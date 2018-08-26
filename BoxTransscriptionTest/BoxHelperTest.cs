@@ -21,12 +21,23 @@ namespace BoxTranscriptionTest
         {
             var result = TestHelper.loadJObject("goodScriptAdherence_Final").ToObject<BoxTranscriptionLamda.SkillResult>();
 
-            var skillCard = BoxTranscriptionLamda.BoxHelper.GeneateScriptAdherenceKeywordCard(result, mockBoxBody);          
+            var skillCard = BoxTranscriptionLamda.BoxHelper.GenerateScriptAdherenceKeywordCard(result, mockBoxBody);          
 
             Assert.AreEqual(result.scriptChecks.Count, skillCard["entries"].Count);
             foreach (var entry in skillCard["entries"]) {
                 Assert.IsTrue(entry["text"].ToLower().Contains("true"));
             }
+
+        }
+
+        [TestMethod]
+        public void TestHeaderImage()
+        {
+            var result = TestHelper.loadJObject("goodScriptAdherence_Final").ToObject<BoxTranscriptionLamda.SkillResult>();
+
+            var skillCard = BoxTranscriptionLamda.BoxHelper.GenerateSupportHeaderCard(result, mockBoxBody);
+
+            Console.WriteLine(skillCard);
 
         }
 
