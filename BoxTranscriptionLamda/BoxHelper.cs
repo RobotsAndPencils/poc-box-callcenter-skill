@@ -1,47 +1,50 @@
 ﻿using Box.V2;
 using Box.V2.Auth;
 using Box.V2.Config;
-using Box.V2.Exceptions;
-using Box.V2.JWTAuth;
 using Box.V2.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace BoxTranscriptionLamda
 {
     public static class BoxHelper
     {
-        private static string BOX_API_ENDPOINT = System.Environment.GetEnvironmentVariable("boxApiEndpoint");
-
+        private enum SkillType { timeline, keyword, transcript };
+        private static Configuration config = Configuration.GetInstance.Result;
+        private static Random random = new Random();
         public static string getFileUrl (string id, dynamic token) {
-            return $"{BOX_API_ENDPOINT}/files/{id}/content?access_token={token.read.access_token}";
+            return $"{config.BoxApiEndpoint}/files/{id}/content?access_token={token.read.access_token}";
         }
         public static async Task GenerateCards(SkillResult result, dynamic boxBody)
         {
-            var config = new BoxConfig(string.Empty, string.Empty, new Uri("http://boxsdk"));
+            var boxConfig = new BoxConfig(string.Empty, string.Empty, new Uri(config.BoxApiUrl));
             var session = new OAuthSession(boxBody.token.write.access_token.Value, string.Empty, 3600, "bearer");
-            var client = new BoxClient(config, session);
+            var client = new BoxClient(boxConfig, session);
 
             if (client == null)
             {
                 throw new Exception("Unable to create box client");
             }
 
-            Console.WriteLine("Created box client using write token");
+            Console.WriteLine("======== BoxHelper Result =========");
+            Console.WriteLine(JsonConvert.SerializeObject(result, Formatting.None));
 
             var cards = new List<Dictionary<string, object>>
             {
-                GeneateTopicsKeywordCard(result, boxBody, client),
-                GeneateScriptAdherenceKeywordCard(result, boxBody, client)
+                GenerateSupportHeaderCard(result, boxBody),
+                GenerateScoreKeywordCard(result, boxBody),
+                GenerateTopicsKeywordCard(result, boxBody),
+                GenerateScriptAdherenceKeywordCard(result, boxBody),
+                GenerateTranscriptCard(result, boxBody)
             };
+            cards.AddRange(GeneateSentimentTimelineCards(result, boxBody));
+
+            Console.WriteLine("======== Cards =========");
+            Console.WriteLine(JsonConvert.SerializeObject(cards, Formatting.None));
+
             var skillsMetadata = new Dictionary<string, object>(){
                 { "cards", cards }
             };
@@ -70,14 +73,105 @@ namespace BoxTranscriptionLamda
             }
         }
 
-        public static Dictionary<string, object> GeneateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
+        private static Dictionary<string, object> GenerateScoreKeywordCard(SkillResult result, dynamic boxBody)
         {
-            var card = GetKeywordCardTemplate();
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Support Score", result.duration);
 
-            card["id"] = "ScriptAdherenceCard";
-            ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
-            card["duration"] = result.duration;
-            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Script Adherence";
+            var entry = new Dictionary<string, object>() {
+                { "type", "text" },
+                { "text", $"Value: {result.supportScore}" }               
+            };
+            ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+
+            if (result.supportScore <= 0m) {
+                entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", "Followup: Negative" }
+                };
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            } else if (result.supportScore > 2.5m) {
+                entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", "Followup: Positive" }               
+                };
+                 ((List<Dictionary<string, object>>) card["entries"]).Add(entry);
+            }
+        
+            return card;
+        }
+
+        public static Dictionary<string, object> GenerateSupportHeaderCard(SkillResult result, dynamic boxBody)
+        {
+            var card = GetSkillCardTemplate(SkillType.timeline, boxBody, "Support Representative", result.duration);
+            dynamic images = config.PeopleImages["support"];
+            string imageUrl = images[random.Next(0, images.Count - 1)].Value;
+
+            var entry = new Dictionary<string, object>() {
+                { "type", "image" },
+                { "text", "Support Rep"},
+                { "image_url", imageUrl }
+            };
+            ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+
+            return card;
+        }
+
+        public static List<Dictionary<string, object>> GeneateSentimentTimelineCards(SkillResult result, dynamic boxBody)
+        {
+            List<Dictionary<string, object>> cards = new List<Dictionary<string, object>>();
+
+            foreach (var speaker in result.resultsBySpeakerSentiment.Keys) {
+                var card = GetSkillCardTemplate(SkillType.timeline, boxBody, $"{result.speakerLabels[speaker]} Sentiment", result.duration);
+                foreach (var sentValue in result.resultsBySpeakerSentiment[speaker].Keys) {
+                    dynamic image = config.SentimentImages[sentValue.ToLower()];
+                    var entry = new Dictionary<string, object>() {
+                        { "type", "text" },
+                        { "text", sentValue },
+                        { "image_url", image.Value },
+                        { "appears", new List<Dictionary<string, object>>() }
+                    };
+
+                    foreach (var speakerResult in result.resultsBySpeakerSentiment[speaker][sentValue])
+                        {
+                            var location = new Dictionary<string, object>() {
+                            { "start", speakerResult.start },
+                            { "end", speakerResult.end }
+                        };
+                        ((List<Dictionary<string, object>>)entry["appears"]).Add(location);
+                    }
+                    ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+                }
+
+                cards.Add(card);             
+            }
+            return cards;
+        }
+
+        private static Dictionary<string, object> GenerateTranscriptCard(SkillResult result, dynamic boxBody)
+        {
+            var card = GetSkillCardTemplate(SkillType.transcript, boxBody, "Transcript", result.duration);
+            foreach (var speakerResult in result.resultByTime)
+            {
+                var entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", $"[{result.speakerLabels[speakerResult.speaker]}]  {speakerResult.text}" },
+                    { "appears", new List<Dictionary<string, object>>() {
+                        new Dictionary<string, object>() {
+                            { "start", speakerResult.start },
+                            { "end", speakerResult.end }
+                        }
+                    } }
+                };
+
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            }
+            return card;
+        }
+
+        public static Dictionary<string, object> GenerateScriptAdherenceKeywordCard(SkillResult result, dynamic boxBody)
+        {
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Script Adherence", result.duration);
+
             foreach (var phraseKey in result.scriptChecks.Keys)
             {
                 var entry = new Dictionary<string, object>() {
@@ -99,29 +193,26 @@ namespace BoxTranscriptionLamda
         //words more than 5 characters. 
         // TODO: should have common word list to ignore instead of <5 chars
         // TODO: should calculate proximity to find phrases that appear together
-        public static Dictionary<string, object> GeneateTopicsKeywordCard(SkillResult result, dynamic boxBody, BoxClient client)
+        public static Dictionary<string, object> GenerateTopicsKeywordCard(SkillResult result, dynamic boxBody)
         {
-            
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Topics", result.duration);
+            var topics = new List<string>(result.topicLocations.Keys);
+            var count = 0;
 
-            var card = GetKeywordCardTemplate();
-            Console.WriteLine("Assign top level properties");
-            card["id"] = "TopicCard";
-            ((Dictionary<string, object>)card["skill"])["id"] = boxBody.skill.id;
-            ((Dictionary<string, object>)card["skill_card_title"])["message"] = "Topics";
-            card["duration"] = result.duration;
+            topics.Sort(delegate (string a, string b)
+            {
+                return result.topicLocations[a].Count.CompareTo(result.topicLocations[b].Count);
+            });
 
-            Console.WriteLine("Start entry loop");
-            for (int i = 0; i < 20 && i<result.topics.Count; i++) {
-                Console.WriteLine($"Create entry for: {result.topics[i]}");
+            foreach (var topic in topics) {
+                if (count++ == 20) break;
                 var entry = new Dictionary<string, object>() {
                     { "type", "text" },
-                    { "text", result.topics[i] },
+                    { "text", topic },
                     { "appears", new List<Dictionary<string, object>>() }
                 };
 
-                Console.WriteLine("Start location loop");
-                foreach (var speakerResult in result.wordLocations[result.topics[i]]) {
-                    Console.WriteLine($"Create location for: {speakerResult.start}, {speakerResult.end}");
+                foreach (var speakerResult in result.topicLocations[topic]) {
                     var location = new Dictionary<string, object>() {
                         { "start", speakerResult.start },
                         { "end", speakerResult.end }
@@ -130,31 +221,27 @@ namespace BoxTranscriptionLamda
                 }
                 ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
             }
-            Console.WriteLine("== WordLocations ==");
-            Console.WriteLine(JsonConvert.SerializeObject(result.wordLocations, Formatting.None));
-
-            Console.WriteLine("== Card ==");
-            Console.WriteLine(JsonConvert.SerializeObject(card, Formatting.None));
 
             return card;
         }
-        private static Dictionary<string, object> GetKeywordCardTemplate()
+
+        private static Dictionary<string, object> GetSkillCardTemplate(SkillType type, dynamic boxBody, string title, decimal duration)
         {
             var template = new Dictionary<string, object>() {
                 { "type", "skill_card" },
-                { "skill_card_type", "keyword" },
+                { "skill_card_type", type.ToString() },
                 { "skill", new Dictionary<string, object>() {
                         { "type", "service" },
-                        { "id", "INJECTED" }
+                        { "id", $"{title.Replace(" ","")}_{boxBody.id.Value}" }
                 }},
                 { "invocation", new Dictionary<string, object>() {
                         { "type", "skill_invocation" },
-                        { "id", "INJECTED" }
+                        { "id", $"I{boxBody.id.Value}" }
                 }},
                 { "skill_card_title", new Dictionary<string, object>() {
-                        { "message", "INJECTED" }
+                        { "message", title }
                 }},
-                { "duration", 0 },
+                { "duration", duration },
                 { "entries",  new List<Dictionary<string, object>>() }
             };
 

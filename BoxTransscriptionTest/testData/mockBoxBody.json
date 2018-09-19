@@ -1,0 +1,90 @@
+﻿{
+  "type": "skill_invocation",
+  "skill": {
+    "id": "489",
+    "type": "skill",
+    "name": "BoxTranscriptionTestAPI",
+    "api_key": "d8dkuoxzxtlz9kh12t2d5pzhqzx83tvk"
+  },
+  "token": {
+    "write": {
+      "access_token": "1!A0k8kSFEw78O3T5CGLe9qc27dGBsJTwJf0dzf1edizgMThDhb7WzaX0DVxgv_NrosMKhVIJXwXzFIb1tVkMoQ57lvUNZO9AhcHQEXGuIO6UPYJMr66eQchiP6JphQqYq1kNpfkc08HY1v-zJbGEFqu7Oa_-ke0oBss65bZf5bqlmWNBd6OJUqva37DNetbiXq0Ylcyyrwgok7GW4URrzTs2ckrVDjTc3L86lIfiVpxP6KFaYIBM5TUuU5HMpwZfYN5BcxZW0W8IlOXw9W7D6FYQBKMV0NFgVjJXGAhI9jkOL-z3c8DIZ7q09Q7et3HMKcDEMaO3ZsfzXVtv-lcmbbEJFbQsUzHn1lsaK-OxOdLttqsqGqZ65pz7uOqsHqQYXnw-mmZIRPpnUlotZXkwxaJnVM1PFa253KRty3fw0",
+      "expires_in": 1534975837,
+      "restricted_to": "[{\"scope\":\"gcm\"},{\"scope\":\"item_upload\",\"object_id\":312454185070,\"object_type\":\"file\"},{\"scope\":\"manage_skill_invocations\"}]",
+      "token_type": "bearer"
+    },
+    "read": {
+      "access_token": "1!3szmOFLlxKl4vRt9HbwSIOrOQkdb6U9_5fOKnF4V_XSKXREAVJiOW9qd-Jukr_FKD8EcTiRlXuSSoaq1fsbEOMXPKH2FjiH0PUBnMVlLKgYOdN8B7yC3rC7kiD2qDU_kPUkOj59TWt5rPykVR0EOt6W6CHX22g6KTouluOM3GmYC2KemVjPkjq_gYHv6_wTmrXD7S-LXir4xpMH3whgGUIVy_RyNsrglEwEvMRhGAcTEeq-sAoiD6EeebWxGWqSHDbEV1fPNoCJPEPidateWS3a2OkxAPoYT8WfZ5gwrdW0ntzWBnOmyLrtjZbAoFgHAEhrXI2A7z9FMbN-NkO-FoqaS5MN0Af8fguF-QjmOJOrnvgE.",
+      "expires_in": 1534975837,
+      "restricted_to": "[{\"scope\":\"gcm\"},{\"scope\":\"item_read\",\"object_id\":312454185070,\"object_type\":\"file\"}]",
+      "token_type": "bearer"
+    }
+  },
+  "status": {
+    "state": "invoked",
+    "message": "",
+    "error_code": "",
+    "additional_info": ""
+  },
+  "id": "5351cb1e-96f8-4786-845f-218c0d61143b_1964121503",
+  "created_at": "2018-08-21T22:10:36+00:00",
+  "trigger": "FILE_CONTENT",
+  "enterprise": {
+    "type": "enterprise",
+    "id": "22469300",
+    "name": "Robots and Pencils"
+  },
+  "source": {
+    "type": "file",
+    "id": "312454185070",
+    "name": "FishOrder 2018-08-20 14-56-03.wav",
+    "sequence_id": "2",
+    "file_version": {
+      "id": "329809332849"
+    },
+    "owner_enterprise_id": "22469300",
+    "parent": {
+      "id": "50790251507"
+    },
+    "old_parent_id": "",
+    "collab_accessible_by": {
+      "type": "",
+      "id": "",
+      "name": "",
+      "login": ""
+    },
+    "size": 19216364
+  },
+  "event": {
+    "event_id": "5351cb1e-96f8-4786-845f-218c0d61143b",
+    "event_type": "ITEM_UPLOAD",
+    "created_at": "2018-08-21T22:10:36+00:00",
+    "created_by": {
+      "type": "user",
+      "id": "3541543826",
+      "name": "Josh Page",
+      "login": "josh.page@robotsandpencils.com"
+    },
+    "source": {
+      "type": "file",
+      "id": "312454185070",
+      "name": "FishOrder 2018-08-20 14-56-03.wav",
+      "sequence_id": "2",
+      "file_version": {
+        "id": "329809332849"
+      },
+      "owner_enterprise_id": "22469300",
+      "parent": {
+        "id": "50790251507"
+      },
+      "old_parent_id": "",
+      "collab_accessible_by": {
+        "type": "",
+        "id": "",
+        "name": "",
+        "login": ""
+      }
+    }
+  },
+  "parameters": {}
+}

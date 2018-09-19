@@ -1,0 +1,37 @@
+﻿{
+  "perfectMatch": [
+    { "text": "the same", "source": "the same" },
+    { "text": "The Same", "source": "The Same" },
+    { "text": "Some Large String", "source": "Some Large String" },
+    { "text": "something!with%symbol$", "source": "something!with%symbol$" }
+  ],
+  "closeMatch":  [
+    { "text": "almost the same", "source": "Almost The Same" },
+    { "text": "misspelled", "source": "mispelled" },
+    { "text": "happy", "source": "slappy" }
+  ],
+  "notMatch": [
+    { "text": "does this match?", "source": "no it doesn't" },
+    { "text": "my toy", "source": "your boat" },
+    { "text": "frakenstein", "source": "dracula" }
+  ],
+  "perfectSearch":  [
+    { "text": "the same", "source": "I think we have the same teacher" },
+    { "text": "hundred times more numerous", "source": "Progress is made by trial and failure; the failures are generally a hundred times more numerous than the successes ; yet they are usually left unchronicled." },
+    { "text": "better experiment", "source": "If your experiment needs statistics, you ought to have done a better experiment" }
+  ],
+  "closeSearch":  [
+    { "text": "thank you for falling support", "source": "thank you for calling support. How may I help you today?" },
+    { "text": "hundred of time more numerous", "source": "Progress is made by trial and failure; the failures are generally a hundred times more numerous than the successes ; yet they are usually left unchronicled." },
+    { "text": "is there something else I can help you with", "source": "I'm sorry we couldn't resolve your problem. is there anything else I can help you with today? maybe some free samples?" }
+  ],
+  "notFoundSearch":  [
+    { "text": "thank you for falling support", "source": "The short man fell over laughing when her saw the blind man trying to play basketball" },
+    { "text": "hundred of times more numerous", "source": "There were a hundred people lined up for icecream at Sam's place, which is far more numerous than they have the capacity to serve" },
+    { "text": "is there something else I can help you with", "source": "Did the genome of our cave-dwelling predecessors contain a set or sets of genes which enable modern man to compose music of infinite complexity and write novels with profound meaning? …It looks as though the early Homo was already provided with the intellectual potential which was in great excess of what was needed to cope with the environment of his time" }
+  ],
+  "multiRangeSearch":  [
+    { "text": "cat dog lizard frog", "source": "cat man fridged frog cat dog lizard frog friday ominous frog" },
+    { "text": "something you should see", "source": "sam said, there is something you should find, something you should see" }
+  ]
+}

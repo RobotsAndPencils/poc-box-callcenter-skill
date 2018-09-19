@@ -1,0 +1,36 @@
+{
+  "box": {
+    "apiUrl": "http://boxsdk"
+  },
+  "skillCards":  {
+    "scriptAdherence": {
+      "greeting": "thank you for calling support",
+      "offer help": "how may I help you",
+      "full service": "is there anything else I can help you with",
+      "satisfaction": "are you satisfied with the support you received",
+      "closing": "have a wonderful day"
+    }
+  },
+  "images" :  {
+    "people":  {
+      "support":  [
+        "https://s3.amazonaws.com/box-poc/callcenter_employee1.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_employee2.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_employee3.png"
+      ],
+      "customer":  [
+        "https://s3.amazonaws.com/box-poc/callcenter_customer1.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_customer2.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_customer3.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_customer4.png",
+        "https://s3.amazonaws.com/box-poc/callcenter_customer5.png"
+      ]
+    },
+    "sentiment":  {
+      "positive": "https://s3.amazonaws.com/box-poc/emoticon_positive.png",
+      "neutral": "https://s3.amazonaws.com/box-poc/emoticon_neutral.png",
+      "negative": "https://s3.amazonaws.com/box-poc/emoticon_negative.png"
+    }
+  }
+
+}
