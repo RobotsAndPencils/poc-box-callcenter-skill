@@ -247,6 +247,61 @@ namespace BoxTranscriptionLamda
 
             return template;
         }
+        private static List<Dictionary<string, object>> GenerateZayoDemoCards(dynamic boxBody)
+        {
+            var cards = new List<Dictionary<string, object>>();
+
+            var card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Project Data", 0);
+            cards.Add(AddBasicEntries(card, new string[]
+                {
+                "SO/CP: 327026 / 027896",
+                "Customer: Sabey Intergate Exchange LLC",
+                "CID: EYTX\087956\\ZYO",
+                "ISO: 0053335",
+                "Product Type: Ethernet"
+                }
+            ));
+            card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Fiber Span Dark Fiber ID", 0);
+            cards.Add(AddBasicEntries(card, new string[]
+                {
+                    "F13E-0000034: Est. Distance - TBD, Est. Loss 1310 ~ TBD dB / 1550 ~ TBD dB",
+                    "F13E-0000035: Est. Distance - TBD, Est. Loss 1310 ~ TBD dB / 1550 ~ TBD dB",
+                    "F13E-0000036: Est. Distance - TBD, Est. Loss 1310 ~ TBD dB / 1550 ~ TBD dB"
+                }
+            ));
+            card = GetSkillCardTemplate(SkillType.keyword, boxBody, "Buildings", 0);
+            cards.Add(AddBasicEntries(card, new string[]
+                {
+                "EVRTWARG / WA-117: 11781 Harbour Reach Dr., Mukilteo, WA",
+                "1321 Colby Ave, Everett, WA",
+                "EVRTWARG / WA-9PA: 900 Pacific Ave., Everett, WA",
+                "BRIRWA03 / WA-23B: 23631 Brier Rd., Brier, WA",
+                "STTLWAWB / WESTIN: 2001 6th Ave., Seattle, WA"
+                }
+            ));
+            card = GetSkillCardTemplate(SkillType.keyword, boxBody, "People", 0);
+            cards.Add(AddBasicEntries(card, new string[]
+                {
+                "Project Manager: Scott Morrison",
+                "Service Delivery Coord: Anthony San Lorenzo" +
+                "Fiber Design Eng: Kris Boccio"
+                }
+            ));
+            
+            return cards;
+        }
+        private static Dictionary<string, object> AddBasicEntries(Dictionary<string, object> card, String[] entryStrings)
+        {
+            foreach (var str in entryStrings) {
+                var entry = new Dictionary<string, object>() {
+                    { "type", "text" },
+                    { "text", str }
+                };
+                ((List<Dictionary<string, object>>)card["entries"]).Add(entry);
+            }
+            return card;
+        }
+
     }
 
 }

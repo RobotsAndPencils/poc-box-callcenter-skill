@@ -79,6 +79,12 @@ namespace BoxTranscriptionLamda
             string fileName = $"{jobName}.{fileExt}";
             string mimeType = MimeMapping.GetMimeType(fileExt);
 
+            if (fileExt.Equals("vsdx", StringComparison.CurrentCultureIgnoreCase)
+                || fileExt.Equals("vdx", StringComparison.CurrentCultureIgnoreCase)) {
+                await ZayoDemo.GenerateCards(inputJson);
+                return;
+            }
+
             PutObjectResponse response = await UploadBoxFileToS3(fileUrl, config.S3BucketName, mimeType, fileName);
             Console.WriteLine("======== Put Object Response =========");
             Console.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
