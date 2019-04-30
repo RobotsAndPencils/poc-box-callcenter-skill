@@ -1,0 +1,16 @@
+﻿{
+  "company": {
+    "companyName": "Republic Services",
+    "companyPhone": "601-939-2221",
+    "companyWebsite": "RepublicServices.com/Support",
+    "accountNumber": "3-0823-0008437"
+  },
+  "invoice": {
+    "invoiceDate": "2018-08-31",
+    "invoiceNumber": "0823-000809792",
+    "previousBalance": 706.0,
+    "adjustmentsCredits": -271.0,
+    "newCharges": 606.0,
+    "totalAmountDue": 1041.0
+  }
+}

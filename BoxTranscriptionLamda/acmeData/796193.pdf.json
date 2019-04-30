@@ -1,0 +1,16 @@
+﻿{
+  "company": {
+    "companyName": "International Plastics",
+    "companyPhone": "864-297-8000",
+    "companyWebsite": "interPlas.com",
+    "accountNumber": "153955"
+  },
+  "invoice":  {
+    "invoiceDate": "2018-12-17",
+    "invoiceNumber": "796193",
+    "previousBalance": 0.0,
+    "adjustmentsCredits": 0.0,
+    "newCharges": 1296.0,
+    "totalAmountDue": 1296.0
+  }
+}
