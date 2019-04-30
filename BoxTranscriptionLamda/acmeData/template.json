@@ -1,3 +1,16 @@
 ﻿{
-
+  "company": {
+    "companyName": "",
+    "companyPhone": "",
+    "companyWebsite": "",
+    "accountNumber": ""
+  },
+  "invoice": {
+    "invoiceDate": "",
+    "invoiceNumber": "",
+    "previousBalance": 0.0,
+    "adjustmentsCredits": 0.0,
+    "newCharges": 0.0,
+    "totalAmountDue": 0.0
+  }
 }

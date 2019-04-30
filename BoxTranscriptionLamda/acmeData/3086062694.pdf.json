@@ -1,3 +1,16 @@
 ﻿{
-
+  "company": {
+    "companyName": "AmeriGas",
+    "companyPhone": "601-939-1171",
+    "companyWebsite": "www.amerigas.com",
+    "accountNumber": "202467441"
+  },
+  "invoice": {
+    "invoiceDate": "2019-01-12",
+    "invoiceNumber": "3086062694",
+    "previousBalance": 226.45,
+    "adjustmentsCredits": 0.0,
+    "newCharges": 222.25,
+    "totalAmountDue": 222.25
+  }
 }

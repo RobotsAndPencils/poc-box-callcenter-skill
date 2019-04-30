@@ -85,6 +85,12 @@ namespace BoxTranscriptionLamda
                 return;
             }
 
+            if (fileExt.Equals("pdf", StringComparison.CurrentCultureIgnoreCase)
+                || fileExt.Equals("pdf", StringComparison.CurrentCultureIgnoreCase)) {
+                await AcmeDemo.GenerateCards(inputJson);
+                return;
+            }
+
             PutObjectResponse response = await UploadBoxFileToS3(fileUrl, config.S3BucketName, mimeType, fileName);
             Console.WriteLine("======== Put Object Response =========");
             Console.WriteLine(JsonConvert.SerializeObject(response, Formatting.None));
