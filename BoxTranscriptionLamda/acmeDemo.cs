@@ -8,6 +8,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+// This is a demo for Acme Brick. They currently scan invoices and run workflows
+// but current software is out of date. Suggesting replacing with box with skill
+// to call out to aws textract, then kick off workflows using K2
+// 
+// This Demo will expect the sample pdf files they gave us and then generate hardcoded
+// skill cards with vendor and invoice metadata
+
 namespace BoxTranscriptionLamda {
     public static class AcmeDemo {
         private enum SkillType { timeline, keyword, transcript };
@@ -81,7 +88,8 @@ namespace BoxTranscriptionLamda {
             return template;
         }
         public static List<Dictionary<string, object>> GenerateAcmeDemoCards(dynamic boxBody) {
-            dynamic data = LoadJObject(boxBody.source.id.Value);
+            var filename = boxBody.source.name.Value;
+            dynamic data = LoadJObject(filename);
 
             var cards = new List<Dictionary<string, object>>();
 
@@ -122,6 +130,7 @@ namespace BoxTranscriptionLamda {
         }
 
         public static JObject LoadJObject(string name) {
+            Console.WriteLine($"Searching for Mock data for invoice file: {name}");
             string strData = LoadJson(name);
             if (strData?.Length == 0) {
                 strData = "{\"company\":{\"companyName\":\"Sprocket Inc\",\"companyPhone\":\"215-555-1212\",\"companyWebsite\":\"sprocket.com\",\"accountNumber\":\"1932091239\"},\"invoice\":{\"invoiceDate\":\"2018-12-01\",\"invoiceNumber\":\"19983210\",\"previousBalance\":308.30,\"adjustmentsCredits\":-10.0,\"newCharges\":210.0,\"totalAmountDue\":508.30}}";
@@ -129,7 +138,19 @@ namespace BoxTranscriptionLamda {
             return JObject.Parse(strData);
         }
         public static string LoadJson(string name) {
-            return System.IO.File.ReadAllText($"acmeData/{name}.json");
+            switch (name) {
+                case "0823-000809792.pdf": 
+                    return "{\"company\":{\"companyName\":\"Republic Services\",\"companyPhone\":\"601-939-2221\",\"companyWebsite\":\"RepublicServices.com/Support\",\"accountNumber\":\"3-0823-0008437\"},\"invoice\":{\"invoiceDate\":\"2018-08-31\",\"invoiceNumber\":\"0823-000809792\",\"previousBalance\":706.0,\"adjustmentsCredits\":-271.0,\"newCharges\":606.0,\"totalAmountDue\":1041.0}}";
+                case "3086062694.pdf":
+                    return "{\"company\":{\"companyName\":\"AmeriGas\",\"companyPhone\":\"601-939-1171\",\"companyWebsite\":\"www.amerigas.com\",\"accountNumber\":\"202467441\"},\"invoice\":{\"invoiceDate\":\"2019-01-12\",\"invoiceNumber\":\"3086062694\",\"previousBalance\":226.45,\"adjustmentsCredits\":0.0,\"newCharges\":222.25,\"totalAmountDue\":222.25}}";
+                case "796193.pdf":
+                    return "{\"company\":{\"companyName\":\"International Plastics\",\"companyPhone\":\"864-297-8000\",\"companyWebsite\":\"interPlas.com\",\"accountNumber\":\"153955\"},\"invoice\":{\"invoiceDate\":\"2018-12-17\",\"invoiceNumber\":\"796193\",\"previousBalance\":0.0,\"adjustmentsCredits\":0.0,\"newCharges\":1296.0,\"totalAmountDue\":1296.0}}";
+                case "797120.pdf":
+                    return "{\"company\":{\"companyName\":\"International Plastics\",\"companyPhone\":\"864-297-8000\",\"companyWebsite\":\"interPlas.com\",\"accountNumber\":\"153955\"},\"invoice\":{\"invoiceDate\":\"2018-12-28\",\"invoiceNumber\":\"797120\",\"previousBalance\":0.0,\"adjustmentsCredits\":0.0,\"newCharges\":108.0,\"totalAmountDue\":108.0}}";
+                default:
+                    Console.WriteLine($"Failed to find invoice match for: {name}");
+                    return "";
+            }
         }
     }
 }

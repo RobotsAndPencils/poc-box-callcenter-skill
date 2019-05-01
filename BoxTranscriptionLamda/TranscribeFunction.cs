@@ -85,8 +85,7 @@ namespace BoxTranscriptionLamda
                 return;
             }
 
-            if (fileExt.Equals("pdf", StringComparison.CurrentCultureIgnoreCase)
-                || fileExt.Equals("pdf", StringComparison.CurrentCultureIgnoreCase)) {
+            if (fileExt.Equals("pdf", StringComparison.CurrentCultureIgnoreCase)) {
                 await AcmeDemo.GenerateCards(inputJson);
                 return;
             }
